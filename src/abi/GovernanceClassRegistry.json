@@ -1,0 +1,732 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      }
+    ],
+    "name": "BadClassParams",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      }
+    ],
+    "name": "EntrenchedFloor",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OnlyPipeline",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      }
+    ],
+    "name": "UnknownClassParams",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "executingClass",
+        "type": "uint8"
+      }
+    ],
+    "name": "WrongPipelineClass",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "byClass",
+        "type": "uint8"
+      }
+    ],
+    "name": "ClassParamsSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proxy",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "eligible",
+        "type": "bool"
+      }
+    ],
+    "name": "HotfixEligibleSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "version",
+        "type": "uint64"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "mask",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "byClass",
+        "type": "uint8"
+      }
+    ],
+    "name": "L1SelectorRegistered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint32",
+        "name": "mask",
+        "type": "uint32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "byClass",
+        "type": "uint8"
+      }
+    ],
+    "name": "SelectorRegistered",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "addressManager",
+    "outputs": [
+      {
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      }
+    ],
+    "name": "allowedClasses",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      }
+    ],
+    "name": "allowedL1Classes",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      }
+    ],
+    "name": "charterBlessed",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      }
+    ],
+    "name": "classParams",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "quorumBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "forFloorBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "thresholdNum",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "thresholdDen",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timelockMin",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timelockMax",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "requiresRiskReview",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct IGovernanceClassRegistry.ClassParams",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "executor",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_voting",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_executor",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_addressManager",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "quorumBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "forFloorBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "thresholdNum",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "thresholdDen",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timelockMin",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timelockMax",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "requiresRiskReview",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct IGovernanceClassRegistry.ClassParams[7]",
+        "name": "_table",
+        "type": "tuple[7]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "selector",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "uint32",
+            "name": "mask",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct GovernanceClassRegistry.SelectorRow[]",
+        "name": "_rows",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "selector",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "uint32",
+            "name": "mask",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct GovernanceClassRegistry.SelectorRow[]",
+        "name": "_l1Rows",
+        "type": "tuple[]"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_hotfixList",
+        "type": "address[]"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "to",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint8",
+        "name": "from",
+        "type": "uint8"
+      }
+    ],
+    "name": "isAtLeastAsStrict",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "proxy",
+        "type": "address"
+      }
+    ],
+    "name": "isHotfixEligible",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "selector",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "bytes",
+            "name": "args",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct GovernanceTypes.Operation",
+        "name": "op",
+        "type": "tuple"
+      }
+    ],
+    "name": "isPermitted",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      },
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "internalType": "bytes4",
+            "name": "selector",
+            "type": "bytes4"
+          },
+          {
+            "internalType": "bytes",
+            "name": "args",
+            "type": "bytes"
+          },
+          {
+            "internalType": "uint256",
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct GovernanceTypes.Operation",
+        "name": "op",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
+      }
+    ],
+    "name": "isPermittedFor",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "migrationVersion",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      },
+      {
+        "internalType": "uint32",
+        "name": "mask",
+        "type": "uint32"
+      }
+    ],
+    "name": "registerL1Selector",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes4",
+        "name": "selector",
+        "type": "bytes4"
+      },
+      {
+        "internalType": "uint32",
+        "name": "mask",
+        "type": "uint32"
+      }
+    ],
+    "name": "registerSelector",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "classId",
+        "type": "uint8"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint16",
+            "name": "quorumBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "forFloorBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "thresholdNum",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "thresholdDen",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timelockMin",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timelockMax",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bool",
+            "name": "requiresRiskReview",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct IGovernanceClassRegistry.ClassParams",
+        "name": "newParams",
+        "type": "tuple"
+      }
+    ],
+    "name": "setClassParams",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "proxy",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "eligible",
+        "type": "bool"
+      }
+    ],
+    "name": "setHotfixEligible",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "voting",
+    "outputs": [
+      {
+        "internalType": "contract IGovernanceVoting",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

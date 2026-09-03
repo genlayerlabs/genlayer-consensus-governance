@@ -1,0 +1,6 @@
+{
+  "repository": "genlayerlabs/genlayer-consensus",
+  "pullRequest": 1553,
+  "commit": "c592217870ea964b9fd7511253f8c498df9fae52",
+  "note": "Generated contract ABIs vendored for a deterministic static build. Refresh when the dependency cut changes."
+}
