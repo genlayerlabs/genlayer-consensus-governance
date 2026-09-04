@@ -131,7 +131,7 @@ input:hover, textarea:hover, select:hover { border-color: #3a4d48; }
 .verified, .unverified, .success-text { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
 
 .proposal-header { padding-bottom: 32px; border-bottom: 1px solid var(--line); margin-bottom: 24px; }
-.proposal-header h1 { font-size: clamp(32px, 4vw, 48px); margin-top: 16px; max-width: 980px; }
+.proposal-header h1 { font-size: clamp(26px, 2.8vw, 36px); margin-top: 14px; max-width: 980px; line-height: 1.12; }
 .proposal-header > p a { display: inline-flex; align-items: center; gap: 3px; color: var(--green); }
 .header-facts { display: flex; flex-wrap: wrap; gap: 34px; margin-top: 26px; }
 .header-facts span { display: flex; flex-direction: column; font-size: 13px; }
@@ -152,8 +152,21 @@ input:hover, textarea:hover, select:hover { border-color: #3a4d48; }
 .rule-card b { font-size: 13px; }
 .rule-card em { color: var(--muted); font-weight: 400; font-style: normal; }
 .rule-card p { margin: 0; color: var(--muted); font-size: 11px; }
-.markdown { color: #d2dbd8; line-height: 1.7; }
-.markdown h1, .markdown h2, .markdown h3 { color: var(--text); margin-top: 1.5em; }
+/* Proposal text is a document to read, not a hero: 14px keeps a full GLIP
+   legible without the body competing with the page headings. */
+.markdown { color: #d2dbd8; line-height: 1.65; font-size: 14px; }
+.markdown h1, .markdown h2, .markdown h3 { color: var(--text); margin-top: 1.5em; line-height: 1.25; }
+.markdown h1 { font-size: 21px; }
+.markdown h2 { font-size: 17px; }
+.markdown h3 { font-size: 15px; }
+.markdown p, .markdown li { font-size: 14px; }
+.markdown code { font-size: 13px; }
+/* GFM tables: bounded and independently scrollable so a wide row scrolls
+   inside the panel instead of overlapping the sidebar. */
+.markdown table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: 1.2em 0; font-size: 13px; }
+.markdown th, .markdown td { border: 1px solid var(--line); padding: 7px 11px; text-align: left; white-space: nowrap; }
+.markdown th { background: #0d1614; font-weight: 600; color: var(--text); }
+.markdown tr:nth-child(even) td { background: rgba(255, 255, 255, .015); }
 .markdown a { color: var(--green); text-decoration: underline; }
 .markdown pre, .raw-text { overflow: auto; padding: 14px; background: #090f0e; border-radius: 8px; border: 1px solid var(--line); }
 details { border-top: 1px solid var(--line); margin-top: 22px; padding-top: 16px; }
