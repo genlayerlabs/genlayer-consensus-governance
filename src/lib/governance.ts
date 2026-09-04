@@ -22,6 +22,27 @@ export const STATE_NAMES = ['Pending', 'Active', 'Defeated', 'Succeeded', 'Veto 
 export const SUPPORT_NAMES = ['Against', 'For', 'Abstain']
 export const VETO_GROUNDS = ['Legal / regulatory / fiduciary', 'Charter violation', 'Outside GLF mandate', 'Non-mitigable Foundation risk']
 
+/* Which proposal states a council action can actually be created against.
+   Three of the four are enforced where the action EXECUTES, not where it is
+   created — designateSpam and raiseClass demand Pending, voidProposal demands
+   Active — so an action created against the wrong one is accepted, approved to
+   threshold, and only then reverts WrongState. RiskReview is the exception:
+   SecurityCouncil.createAction itself rejects anything outside RiskReview or
+   Timelock with NoActiveIncident. Offering only eligible proposals is what
+   keeps the first three from being discovered days later at execution. */
+export const ACTION_PROPOSAL_STATES: Record<number, number[]> = {
+  0: [0], // DesignateSpam  -> Pending
+  1: [1], // VoidProposal   -> Active
+  2: [0], // RaiseClass     -> Pending
+  3: [6, 7], // RiskReview  -> Risk Review or Timelock
+}
+
+export function actionProposalRequirement(actionType: number): string {
+  const states = ACTION_PROPOSAL_STATES[actionType]
+  if (!states) return ''
+  return states.map((state) => STATE_NAMES[state]).join(' or ')
+}
+
 export function titleFromDescription(description: string, id: bigint): string {
   const line = description.split(/\r?\n/).map((value) => value.trim()).find(Boolean)
   if (!line) return `Proposal #${id}`

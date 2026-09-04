@@ -1,6 +1,7 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
+import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
+  ACTION_PROPOSAL_STATES, actionProposalRequirement } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -137,5 +138,22 @@ describe('governance helpers', () => {
     expect(formatGen(0n)).toBe('0')
     expect(formatGen(parseEther('1501'))).toBe('1,501')
     expect(formatGen(parseEther('1234.5678'))).toBe('1,234.56')
+  })
+
+  it('offers a council action only the proposal states it can target', () => {
+    // Enforced in three different places: designateSpam and raiseClass demand
+    // Pending, voidProposal demands Active — all at EXECUTION, so a wrong pick
+    // survives creation and the whole approval round before reverting
+    // WrongState. RiskReview is checked in createAction itself.
+    expect(ACTION_PROPOSAL_STATES[0]).toEqual([0]) // DesignateSpam -> Pending
+    expect(ACTION_PROPOSAL_STATES[1]).toEqual([1]) // VoidProposal  -> Active
+    expect(ACTION_PROPOSAL_STATES[2]).toEqual([0]) // RaiseClass    -> Pending
+    expect(ACTION_PROPOSAL_STATES[3]).toEqual([6, 7]) // RiskReview -> Risk Review or Timelock
+    // the types that reference no proposal must stay absent, or the picker
+    // would demand one for a Freeze and never enable the button
+    for (const type of [4, 5, 6]) expect(ACTION_PROPOSAL_STATES[type]).toBeUndefined()
+    expect(actionProposalRequirement(1)).toBe('Active')
+    expect(actionProposalRequirement(3)).toBe('Risk Review or Timelock')
+    expect(actionProposalRequirement(6)).toBe('')
   })
 })
