@@ -52,11 +52,19 @@ function Rule({ title, current, required, met, detail }: { title: string; curren
   return <article className={`rule-card ${met ? 'met' : 'unmet'}`}><span>{met ? <Check size={17} /> : <Circle size={17} />}</span><div><small>{title}</small><b>{current} <em>{met ? 'meets' : 'needs'} {required}</em></b><p>{detail}</p></div></article>
 }
 
-function Lifecycle({ state, voteStart, voteEnd, eta, deadline, requiresRiskReview, hasL1, rules, postVote }: { state: number; voteStart: bigint; voteEnd: bigint; eta: bigint; deadline: bigint; requiresRiskReview: boolean; hasL1: boolean; rules: ProposalSummary['rules']; postVote: ProposalSummary['postVote'] }) {
+function Lifecycle({ state, creationTime, voteStart, voteEnd, eta, deadline, requiresRiskReview, hasL1, rules, postVote }: { state: number; creationTime: number; voteStart: bigint; voteEnd: bigint; eta: bigint; deadline: bigint; requiresRiskReview: boolean; hasL1: boolean; rules: ProposalSummary['rules']; postVote: ProposalSummary['postVote'] }) {
   // vetoClose = voteEnd + the window in force; the two-member extension
   // (§5.5 rule 1) swaps in extendedVetoWindow, so read the flag rather than
   // assuming. Both later deadlines hang off this instant.
   const vetoClose = voteEnd + BigInt(postVote.vetoExtended ? rules.extendedVetoWindow : rules.vetoWindow)
+  // Approval offsets are unfrozen seconds from creation; both bodies may
+  // approve, and the FIRST one sets the eta, so report whichever landed.
+  const approvedAt = (offset: number) => formatDate(BigInt(creationTime) + BigInt(offset))
+  const riskReviewStatus = postVote.scApprovedAtOffset !== 0
+    ? `Approved by the Security Council ${approvedAt(postVote.scApprovedAtOffset)}`
+    : postVote.glfApprovedAtOffset !== 0
+      ? `Approved by the GLF signer ${approvedAt(postVote.glfApprovedAtOffset)}`
+      : `Approve before ${formatDate(vetoClose + BigInt(rules.reviewWindow))} or the proposal expires`
   const steps = [
     { label: 'Created & preparation', when: `Voting opens ${formatDate(voteStart)}`, done: state > 0, current: state === 0 },
     { label: 'Active voting', when: `Deadline ${formatDate(voteEnd)}`, done: state > 1, current: state === 1 },
@@ -65,7 +73,11 @@ function Lifecycle({ state, voteStart, voteEnd, eta, deadline, requiresRiskRevie
     // Risk Review is not open-ended: _postVoteState expires the proposal at
     // anchor + reviewWindow if neither body has approved, so the deadline
     // belongs on the step that is waiting for a human.
-    ...(requiresRiskReview ? [{ label: 'Risk Review', when: `Approve before ${formatDate(vetoClose + BigInt(rules.reviewWindow))} or the proposal expires`, done: state > 6 && state !== 5, current: state === 6 }] : []),
+    // Once a body has approved, the expiry warning is not just redundant but
+    // wrong — nothing expires any more, and it repeats the ETA shown below it
+    // for a different reason. Report WHO approved instead; the deadline only
+    // belongs on a step still waiting for someone.
+    ...(requiresRiskReview ? [{ label: 'Risk Review', when: riskReviewStatus, done: state > 6 && state !== 5, current: state === 6 }] : []),
     { label: 'Class timelock', when: eta ? `Execution ETA ${formatDate(eta)}` : 'ETA is set during settlement', done: state > 7 && state !== 11, current: state === 7 },
     { label: 'Execution window', when: deadline ? `Expires ${formatDate(deadline)}` : 'Permissionless after timelock', done: state === 9, current: state === 8 || state === 10 || state === 11 },
     ...(hasL1 ? [{ label: 'L2 → L1 execution leg', when: 'Bridge message, L1 timelock, execution, cancellation, and expiry are verified from the deployed bridge', done: state === 9, current: state === 8 || state === 10 }] : []),
@@ -148,7 +160,7 @@ export function ProposalPage() {
         <details><summary>Payload commitment</summary><code className="hash">{proposal.core.payloadHash}</code></details>
       </section>
 
-      <section className="panel"><p className="eyebrow">Lifecycle</p><h2>Proposal timeline</h2><Lifecycle state={proposal.state} voteStart={proposal.voteStart} voteEnd={proposal.voteEnd} eta={proposal.executionEta} deadline={proposal.executionDeadline} requiresRiskReview={proposal.rules.requiresRiskReview} hasL1={hasL1} rules={proposal.rules} postVote={proposal.postVote} /><div className="contract-pin"><small>Pinned contract set</small><code>{proposal.core.contractsHash}</code><p>Historical voting power, GES, and permissions resolve against this immutable contract set.</p></div></section>
+      <section className="panel"><p className="eyebrow">Lifecycle</p><h2>Proposal timeline</h2><Lifecycle state={proposal.state} creationTime={proposal.core.creationTime} voteStart={proposal.voteStart} voteEnd={proposal.voteEnd} eta={proposal.executionEta} deadline={proposal.executionDeadline} requiresRiskReview={proposal.rules.requiresRiskReview} hasL1={hasL1} rules={proposal.rules} postVote={proposal.postVote} /><div className="contract-pin"><small>Pinned contract set</small><code>{proposal.core.contractsHash}</code><p>Historical voting power, GES, and permissions resolve against this immutable contract set.</p></div></section>
 
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain VoteCast logs</p><h2>Voters</h2></div><span>{voters.records.length} loaded</span></div><div className="tabs">{['all', '1', '0', '2'].map((value) => <button className={voterFilter === value ? 'active' : ''} key={value} onClick={() => setVoterFilter(value)}>{value === 'all' ? 'All' : SUPPORT_NAMES[Number(value)]}</button>)}</div>
         {voters.progress && <p className="scan-progress">{voters.progress}</p>}{voters.error && <div className="error-box">{voters.partial ? 'Partial results shown. ' : ''}{voters.error}<Button variant="secondary" onClick={() => void voters.retry()}>Retry scan</Button></div>}
