@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Check, ExternalLink, RefreshCw, ShieldAlert, Snowflake } from 'lucide-react'
+import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import SecurityCouncilABI from '@/abi/SecurityCouncil.json'
 import { Button } from '@/components/Button'
 import { InfoHint } from '@/components/InfoHint'
@@ -10,11 +11,12 @@ import { useCouncil } from '@/hooks/useCouncil'
 import { useCouncilActions } from '@/hooks/useCouncilActions'
 import { useProposals } from '@/hooks/useProposals'
 import { useCanCall } from '@/hooks/useCanCall'
+import { useRaiseClassOptions } from '@/hooks/useRaiseClassOptions'
 import type { CouncilAction, CouncilThresholds, ProposalSummary } from '@/lib/types'
 import {
   ACTION_PROPOSAL_STATES, ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES,
   SEAT_STATUS_NAMES, actionProposalId, actionProposalRequirement, actionThreshold, describeActionData,
-  encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress, truncate,
+  CLASS_NAMES, encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress, truncate,
 } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 
@@ -42,8 +44,8 @@ function targetTitle(actionType: number, actionData: `0x${string}`, proposals: P
   return `GLIP #${id} — ${truncate(match.title, 44)}`
 }
 
-function ActionComposer({ council, isMember, onDone, proposals, proposalsLoading }: {
-  council?: `0x${string}`; isMember: boolean; onDone: () => void
+function ActionComposer({ council, classRegistry, isMember, onDone, proposals, proposalsLoading }: {
+  council?: `0x${string}`; classRegistry?: `0x${string}`; isMember: boolean; onDone: () => void
   proposals: ProposalSummary[]; proposalsLoading: boolean
 }) {
   const [actionType, setActionType] = useState(3)
@@ -71,10 +73,20 @@ function ActionComposer({ council, isMember, onDone, proposals, proposalsLoading
     () => proposals.filter((proposal) => ACTION_PROPOSAL_STATES[actionType]?.includes(proposal.state)),
     [proposals, actionType],
   )
+  const picked = eligible.find((proposal) => proposal.core.id.toString() === proposalId)
+  const { options: raiseOptions } = useRaiseClassOptions(actionType === 2 ? classRegistry : undefined, picked)
+  const raiseChoice = raiseOptions.find((option) => String(option.classId) === newClass)
+
   // Reset a pick that the new action type cannot target.
   useEffect(() => {
     if (proposalId && !eligible.some((proposal) => proposal.core.id.toString() === proposalId)) setProposalId('')
   }, [eligible, proposalId])
+  // Default to the first class the proposal can legally be raised to, rather
+  // than to "1" — which is the current class for half the proposals here.
+  useEffect(() => {
+    const first = raiseOptions.find((option) => option.eligible)
+    if (raiseOptions.length && (!raiseChoice || !raiseChoice.eligible)) setNewClass(first ? String(first.classId) : '')
+  }, [raiseOptions, raiseChoice])
   // ACTION_EXPIRY_CAP is 30 days; anything beyond reverts ExpiryTooFar.
   const expiryTooFar = Number(minutes) > 30 * 24 * 60
 
@@ -111,7 +123,20 @@ function ActionComposer({ council, isMember, onDone, proposals, proposalsLoading
           </small>
         </label>}
         {actionType === 2 && <label>Raise to class
-          <input value={newClass} onChange={(event) => setNewClass(event.target.value)} inputMode="numeric" />
+          <select value={newClass} onChange={(event) => setNewClass(event.target.value)}
+            disabled={!picked || !raiseOptions.some((option) => option.eligible)}>
+            {!picked
+              ? <option value="">Pick a proposal first</option>
+              : raiseOptions.map((option) => <option key={option.classId} value={option.classId} disabled={!option.eligible}>
+                {option.classId} · {option.name}{option.eligible ? '' : ` — ${option.blockedBy}`}
+              </option>)}
+          </select>
+          {picked && raiseChoice?.params && <small className="muted">
+            Quorum {(raiseChoice.params.quorumBps / 100).toFixed(1)}% · For floor {(raiseChoice.params.forFloorBps / 100).toFixed(1)}%
+            · {raiseChoice.params.thresholdNum}/{raiseChoice.params.thresholdDen} threshold
+            · timelock {formatDuration(raiseChoice.params.timelockMin)}–{formatDuration(raiseChoice.params.timelockMax)}
+            {raiseChoice.params.requiresRiskReview ? ' · Risk Review required' : ''}
+          </small>}
         </label>}
         {actionType === 4 && <><label className="full">Payload hash
           <input value={payloadHash} onChange={(event) => setPayloadHash(event.target.value)} placeholder="0x…" />
@@ -123,6 +148,11 @@ function ActionComposer({ council, isMember, onDone, proposals, proposalsLoading
             {FREEZE_KIND_NAMES.map((name, index) => <option key={name} value={index}>{index} · {name}</option>)}
           </select>
         </label>}
+        {actionType === 2 && picked && <div className="role-note full"><AlertTriangle size={16} /><p>
+          <b>Raising re-baselines the proposal</b>
+          It restarts the preparation period, re-copies the rules snapshot from the new class's live parameters, and
+          clamps the timelock into that class's range. The payload is unchanged — only what it must clear to pass.
+          Currently {CLASS_NAMES[picked.core.classId] ?? `class ${picked.core.classId}`}.</p></div>}
         <label className="full"><span className="label-text">Expires in (minutes)<InfoHint text={HINTS.expiry} /></span>
           <input value={minutes} onChange={(event) => setMinutes(event.target.value)} inputMode="numeric" />
           <small className={expiryTooFar ? 'danger-text' : 'muted'}>
@@ -136,12 +166,21 @@ function ActionComposer({ council, isMember, onDone, proposals, proposalsLoading
         abi={SecurityCouncilABI as never}
         functionName="createAction"
         args={[actionType, encoded.data, expiresAt]}
-        disabled={!isMember || Boolean(encoded.error) || expiryTooFar || (needsProposal && !proposalId)}
+        disabled={!isMember || Boolean(encoded.error) || expiryTooFar || (needsProposal && !proposalId) || (actionType === 2 && !raiseChoice?.eligible)}
         onConfirmed={onDone}
       >Create action</TransactionButton>
     </section>
   )
 }
+
+/* A council action executes by calling GovernanceVoting, so the error it
+   reverts with is defined THERE — probing with the council ABI alone left
+   viem unable to decode it, and the card printed a raw "reverted with the
+   following signature" preamble. Errors only: nothing else is called. */
+const COUNCIL_PROBE_ABI = [
+  ...(SecurityCouncilABI as unknown[]),
+  ...(GovernanceVotingABI as { type: string }[]).filter((entry) => entry.type === 'error'),
+]
 
 function ActionRow({ action, council, isMember, thresholds, proposals, now, onDone }: {
   action: CouncilAction; council?: `0x${string}`; isMember: boolean
@@ -156,7 +195,7 @@ function ActionRow({ action, council, isMember, thresholds, proposals, now, onDo
   // DesignateSpam needs the proposal Pending, and voting opening while the
   // council was collecting signatures kills it with no event to say so.
   const { allowed: canExecute, reason } = useCanCall({
-    address: council, abi: SecurityCouncilABI as never, functionName: 'executeAction',
+    address: council, abi: COUNCIL_PROBE_ABI as never, functionName: 'executeAction',
     args: [action.actionId], account: address, enabled: ready,
   })
   const tone = action.executed ? 1 : expired || canExecute === false ? 0 : 2
@@ -188,11 +227,14 @@ function ActionRow({ action, council, isMember, thresholds, proposals, now, onDo
       until it expires.</p></div>}
 
     {!action.executed && !expired && <div className="action-buttons">
-      <TransactionButton
+      {/* An action at threshold needs no more signatures, and one that can
+          never execute needs nothing at all — a disabled Approve under a
+          "cannot execute" notice is an offer to do useless work. */}
+      {action.approvals < required && canExecute !== false && <TransactionButton
         address={council} abi={SecurityCouncilABI as never}
         functionName="approveAction" args={[action.actionId]} variant="secondary"
         disabled={!isMember} onConfirmed={onDone}
-      >Approve</TransactionButton>
+      >Approve</TransactionButton>}
       {ready && canExecute !== false && <TransactionButton
         address={council} abi={SecurityCouncilABI as never}
         functionName="executeAction" args={[action.actionId]} onConfirmed={onDone}
@@ -281,7 +323,7 @@ export function CouncilPage() {
         })}</div>
       </section>
 
-      <ActionComposer council={currentSet.council} isMember={isMember} onDone={() => void actions.refresh()}
+      <ActionComposer council={currentSet.council} classRegistry={currentSet.classRegistry} isMember={isMember} onDone={() => void actions.refresh()}
         proposals={proposals} proposalsLoading={proposalsLoading} />
       </div>
 

@@ -52,7 +52,11 @@ export function useCanCall(params: {
         const name = (error as { name?: string })?.name ?? ''
         const reverted = name === 'ContractFunctionExecutionError' || name === 'ContractFunctionRevertedError'
         setAllowed(reverted ? false : undefined)
-        setReason(reverted ? errorMessage(error).split('\n')[0] : '')
+        // errorMessage puts its translation first and the raw viem text after a
+        // blank line; keep the translation, and drop a raw preamble that only
+        // repeats the function name.
+        const message = reverted ? errorMessage(error).split('\n\n')[0].split('\n')[0] : ''
+        setReason(/reverted with the following/i.test(message) ? '' : message)
       })
       .finally(() => { if (!cancelled) setChecking(false) })
     return () => { cancelled = true }
