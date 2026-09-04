@@ -9,7 +9,7 @@ import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { normalizeCore, normalizePostVote, normalizeRules, normalizeVotes, titleFromDescription } from '@/lib/governance'
-import { scanLogs } from '@/lib/rpc'
+import { findLatestLogBackwards, scanLogs } from '@/lib/rpc'
 import type { ContractSet, ProposalSummary } from '@/lib/types'
 
 const RANGE = 100_000n
@@ -24,8 +24,11 @@ function normalizeSet(value: any): ContractSet {
 
 export async function fetchProposal(voting: Address, id: bigint, account?: Address, creationLog?: any): Promise<ProposalSummary> {
   if (!creationLog) {
-    const creationLogs = await scanLogs({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, args: { id }, fromBlock: deploymentConfig.deploymentStartBlock })
-    creationLog = creationLogs.at(-1)
+    // Newest-first and best-effort: this only decorates the view with the
+    // creation tx/block, so it must not gate the render. A forward scan from
+    // deploymentStartBlock (genesis when VITE_DEPLOYMENT_START_BLOCK is unset)
+    // costs ~2,000 capped requests on a 20M-block chain before anything shows.
+    creationLog = await findLatestLogBackwards({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, args: { id }, floor: deploymentConfig.deploymentStartBlock })
   }
   const calls = [
     ['getProposal', [id]], ['state', [id]], ['proposalDescription', [id]],
