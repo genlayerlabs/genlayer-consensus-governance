@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Check, RefreshCw, ShieldAlert, Snowflake, Users } from 'lucide-react'
 import SecurityCouncilABI from '@/abi/SecurityCouncil.json'
 import { Button } from '@/components/Button'
@@ -8,9 +8,11 @@ import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { useCouncil } from '@/hooks/useCouncil'
 import { useCouncilActions } from '@/hooks/useCouncilActions'
+import { useProposals } from '@/hooks/useProposals'
 import {
-  ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES, SEAT_STATUS_NAMES,
-  actionThreshold, describeActionData, encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress,
+  ACTION_PROPOSAL_STATES, ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES,
+  SEAT_STATUS_NAMES, actionProposalRequirement, actionThreshold, describeActionData,
+  encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress,
 } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 
@@ -35,6 +37,7 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
   const [approvalExpiry, setApprovalExpiry] = useState('')
   const [freezeKind, setFreezeKind] = useState(0)
   const [minutes, setMinutes] = useState('60')
+  const { proposals, loading: proposalsLoading } = useProposals()
 
   const expiresAt = useMemo(() => BigInt(Math.floor(Date.now() / 1000) + Math.max(1, Number(minutes) || 0) * 60), [minutes])
   const encoded = useMemo(() => {
@@ -45,7 +48,18 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
     }
   }, [actionType, proposalId, newClass, payloadHash, approvalExpiry, freezeKind])
 
-  const needsProposal = actionType === 0 || actionType === 1 || actionType === 2 || actionType === 3
+  const needsProposal = ACTION_PROPOSAL_STATES[actionType] !== undefined
+  // Only proposals this action type can legally target. Three of the four are
+  // checked where the action EXECUTES, so an ineligible one is accepted here
+  // and reverts WrongState after the council has already approved it.
+  const eligible = useMemo(
+    () => proposals.filter((proposal) => ACTION_PROPOSAL_STATES[actionType]?.includes(proposal.state)),
+    [proposals, actionType],
+  )
+  // Reset a pick that the new action type cannot target.
+  useEffect(() => {
+    if (proposalId && !eligible.some((proposal) => proposal.core.id.toString() === proposalId)) setProposalId('')
+  }, [eligible, proposalId])
   // ACTION_EXPIRY_CAP is 30 days; anything beyond reverts ExpiryTooFar.
   const expiryTooFar = Number(minutes) > 30 * 24 * 60
 
@@ -63,8 +77,23 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
             {ACTION_TYPE_NAMES.map((name, index) => <option key={name} value={index}>{index} · {name}</option>)}
           </select>
         </label>
-        {needsProposal && <label className={actionType === 2 ? '' : 'full'}>Proposal ID
-          <input value={proposalId} onChange={(event) => setProposalId(event.target.value)} inputMode="numeric" placeholder="2" />
+        {needsProposal && <label className={actionType === 2 ? '' : 'full'}>Proposal
+          <select value={proposalId} onChange={(event) => setProposalId(event.target.value)}
+            disabled={eligible.length === 0}>
+            {eligible.length === 0
+              ? <option value="">{proposalsLoading ? 'Reading proposals…' : 'None'}</option>
+              : <>
+                <option value="">Select a proposal…</option>
+                {eligible.map((proposal) => <option key={proposal.core.id.toString()} value={proposal.core.id.toString()}>
+                  GLIP #{proposal.core.id.toString()} — {proposal.title}
+                </option>)}
+              </>}
+          </select>
+          <small className="muted">
+            {eligible.length === 0
+              ? `No proposal is in ${actionProposalRequirement(actionType)} right now — nothing this action can target.`
+              : `Only proposals in ${actionProposalRequirement(actionType)} are listed; this action reverts against any other state.`}
+          </small>
         </label>}
         {actionType === 2 && <label>Raise to class
           <input value={newClass} onChange={(event) => setNewClass(event.target.value)} inputMode="numeric" />
