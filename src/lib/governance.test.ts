@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
+import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
   ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, throttleBackoffMs, truncate } from './governance'
 
 describe('governance helpers', () => {
@@ -207,5 +207,20 @@ describe('governance helpers', () => {
     expect(throttleBackoffMs(new Error('node is at capacity'))).toBe(0)
     // and a genuine refusal must never be retried
     expect(throttleBackoffMs(new Error('reverted: NotSitting()'))).toBeUndefined()
+  })
+
+  it('offers one crank per phase, and none where a phase needs no transaction', () => {
+    // startEndorsement is IDEMPOTENT: calling it twice succeeds silently, so
+    // neither a revert nor a simulation would catch a duplicate — the phase is
+    // the only thing that can withhold the button.
+    expect(electionCranks(1).map((crank) => crank.fn)).toEqual(['startEndorsement'])
+    expect(electionCranks(2).map((crank) => crank.fn)).toEqual(['sealSlate'])
+    expect(electionCranks(3).map((crank) => crank.fn)).toEqual(['castBallot'])
+    // Succeeded is transient and Failed still needs recording: both settle
+    expect(electionCranks(4).map((crank) => crank.fn)).toEqual(['settleElection'])
+    expect(electionCranks(5).map((crank) => crank.fn)).toEqual(['settleElection'])
+    // Scheduled and Settled have nothing to advance
+    expect(electionCranks(0)).toEqual([])
+    expect(electionCranks(6)).toEqual([])
   })
 })
