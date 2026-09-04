@@ -63,6 +63,14 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
    a member checking who approved is comparing against a roster, and the row
    has the width to spare. */
 .approver-list code { font-size: 11px; letter-spacing: -.01em; }
+/* The directory address is the fastest way to fill "Delegate to" — typing a
+   40-hex address by hand is where a delegation goes to the wrong account.
+   Clicking it fills the field; the profile keeps its own link in the row so
+   nothing becomes unreachable. */
+.pick-address { appearance: none; border: 0; background: none; padding: 0; cursor: pointer; font: inherit; color: var(--green); text-align: left; }
+.pick-address:hover { text-decoration: underline; }
+.row-links { display: inline-flex; align-items: center; gap: 12px; white-space: nowrap; }
+.row-links a { display: inline-flex; align-items: center; gap: 4px; color: var(--green); font-size: 11px; }
 .approver-list b { color: var(--muted); font-weight: 400; }
 .approver-list em { color: var(--muted); font-style: normal; }
 .encoded-preview { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #090f0e; }
