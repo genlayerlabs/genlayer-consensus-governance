@@ -1,7 +1,7 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
-  ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, truncate } from './governance'
+  ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, truncate } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -181,5 +181,22 @@ describe('governance helpers', () => {
     expect(actionProposalId(6, '0x')).toBeUndefined()
     // malformed data renders a row, it does not throw the page away
     expect(actionProposalId(3, '0x1234')).toBeUndefined()
+  })
+
+  it('reads a node throttle as a retry, not as a governance refusal', () => {
+    // viem labels a failed eth_sendRawTransaction "the contract function
+    // reverted", so a capacity limit arrives looking exactly like a permission
+    // error — and this one names approveAction, whose real refusals (NotSitting,
+    // StaleRoster) would otherwise be the obvious reading.
+    const raw = 'The contract function "approveAction" reverted with the following reason:\n'
+      + 'RPC 0x107d Custom eth_sendRawTransaction: server returned an error response: '
+      + 'error code -32005: transaction gas rate limit exceeded: node is at capacity, '
+      + 'retry in ~1111ms, data: {"retryAfterMs":1111}'
+    const message = errorMessage(new Error(raw))
+    expect(message).toContain('node is at capacity')
+    expect(message).toContain('1.1 seconds')
+    expect(message).toContain('nothing was submitted')
+    // and a real revert is still translated, not swallowed by the throttle branch
+    expect(errorMessage(new Error('reverted: NotSitting()'))).toContain('requires a seat with status Active')
   })
 })
