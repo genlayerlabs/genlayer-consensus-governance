@@ -48,6 +48,17 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 .account-summary > span, .account-summary > div > span:last-child { display: flex; flex-direction: column; gap: 2px; }
 .account-summary small { color: var(--muted); font-size: 11px; }
 .account-summary b { font-size: 13px; font-weight: 600; }
+.verdict { display: grid; gap: 3px; padding: 13px 15px; margin-bottom: 16px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 10px; background: rgba(255,255,255,.02); }
+.verdict b { font-size: 16px; }
+.verdict small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+.verdict p { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.verdict-passed { border-left-color: var(--green); }
+.verdict-passed b { color: var(--green); }
+.verdict-defeated { border-left-color: #ff6b6b; }
+.verdict-defeated b { color: #ff6b6b; }
+.verdict-undecided { border-left-color: #e2b53d; }
+.verdict-undecided b { color: #e2b53d; }
+
 .wallet-actions { display: inline-flex; align-items: center; gap: 4px; }
 
 .vote-as { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
@@ -137,6 +148,9 @@ input:hover, textarea:hover, select:hover { border-color: #3a4d48; }
 .proposal-header > p a { display: inline-flex; align-items: center; gap: 3px; color: var(--green); }
 .header-facts { display: flex; flex-wrap: wrap; gap: 34px; margin-top: 26px; }
 .header-facts span { display: flex; flex-direction: column; font-size: 13px; }
+/* .tx-link carries a margin-top and a smaller size for standalone links under
+   a transaction; in this row that pushed it below its siblings' baseline. */
+.header-facts .tx-link { margin-top: 0; font-size: 13px; align-items: center; gap: 4px; }
 .detail-grid, .builder-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
 .detail-main, .builder-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .sticky { position: sticky; top: 92px; }
