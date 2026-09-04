@@ -229,6 +229,63 @@ export function voteChecks(votes: VoteTotals, rules: ProposalRules, ges: bigint)
   }
 }
 
+export interface VoteVerdict {
+  /** 'passed' | 'defeated' | 'undecided' — undecided only while voting is open */
+  outcome: 'passed' | 'defeated' | 'undecided'
+  headline: string
+  reason: string
+  /** true once the chain has settled the result; false = provisional */
+  final: boolean
+}
+
+/**
+ * The one-line answer the three rule cards never give.
+ *
+ * The rules panel deliberately shows quorum, For floor and approval
+ * separately (a bare "passed/failed" hides which condition decided it), but
+ * showing ONLY the components leaves the reader to do the boolean algebra —
+ * and a viewer looking at an executable proposal should not have to derive
+ * whether it actually won.
+ *
+ * Once the chain has moved past Active its state IS the verdict, so it is
+ * read rather than recomputed. While voting is open the same arithmetic gives
+ * a provisional standing, explicitly labelled as such.
+ */
+export function voteVerdict(state: number, votes: VoteTotals, checks: ReturnType<typeof voteChecks>): VoteVerdict {
+  const decided = votes.for + votes.against
+  // Failure order mirrors the rules: quorum first (nothing else matters
+  // without it), then the For floor, then the head-to-head threshold.
+  const why = () => {
+    if (checks.turnout === 0n) return 'No votes were cast, so quorum could not be met.'
+    if (!checks.quorumMet) return 'Turnout did not reach quorum. The other rules are not reached.'
+    // Checked before the For floor: with no For or Against votes the floor
+    // trivially fails too, and naming that symptom hides the actual cause.
+    if (decided === 0n) return 'Only Abstain votes were cast. Abstain counts toward quorum but never toward the For floor or the approval threshold, so nothing carried.'
+    if (!checks.floorMet) return 'Quorum was met, but For votes stayed under the class For floor.'
+    if (votes.for === votes.against) return 'For and Against tied. Approval needs strictly more than the threshold, so a tie fails.'
+    if (!checks.thresholdMet) return 'Against outweighed For against the class approval threshold.'
+    return 'Quorum, For floor and approval threshold were all met.'
+  }
+  const wouldPass = checks.quorumMet && checks.floorMet && checks.thresholdMet
+
+  // Terminal and post-vote states: the chain has spoken.
+  if (state === 2) return { outcome: 'defeated', headline: 'Defeated', reason: why(), final: true }
+  if (state === 5) return { outcome: 'defeated', headline: 'Vetoed by the GLF', reason: 'The vote passed, but the GLF exercised its veto during the objection window.', final: true }
+  if (state === 12) return { outcome: 'defeated', headline: 'Voided', reason: 'The proposal was voided and can no longer execute.', final: true }
+  if (state === 13) return { outcome: 'defeated', headline: 'Designated spam', reason: 'The Security Council designated this proposal spam; the bond is forfeited.', final: true }
+  if (state === 11) return { outcome: 'defeated', headline: 'Expired', reason: 'The vote passed but the execution window closed before it executed.', final: true }
+  if (state > 2 && state !== 13) return { outcome: 'passed', headline: 'For wins', reason: why(), final: true }
+
+  // Pending or Active: provisional.
+  if (state === 0) return { outcome: 'undecided', headline: 'Voting has not opened', reason: 'The snapshot fixes when voting opens; no votes count before then.', final: false }
+  return {
+    outcome: 'undecided',
+    headline: wouldPass ? 'Passing so far' : 'Failing so far',
+    reason: `${why()} Voting is still open, so this can still change.`,
+    final: false,
+  }
+}
+
 export function proposalNextAction(state: number, retryAllowed = false): string {
   return [
     'Wait for voting to open', 'Vote before the deadline', 'Settle the defeated proposal',

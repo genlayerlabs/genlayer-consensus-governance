@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { descriptionHash, encodeOperation, formatGen, preserveAlignedBlocks, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
+import { descriptionHash, encodeOperation, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -25,6 +25,31 @@ describe('governance helpers', () => {
 
   it('formats large GEN values without unsafe Number conversion', () => {
     expect(formatGen(parseEther('462000000.125'), 3)).toBe('462,000,000.125')
+  })
+
+  it('states an explicit verdict, including the cases a rule list hides', () => {
+    const rules = { quorumBps: 800, forFloorBps: 500, thresholdNum: 1, thresholdDen: 2, requiresRiskReview: false, vetoWindow: 0, extendedVetoWindow: 0, reviewWindow: 0, executionWindow: 0, preparation: 0, votingPeriod: 0, lateQuorumWindow: 0 }
+    const at = (state: number, v: { for: bigint; against: bigint; abstain: bigint }) =>
+      voteVerdict(state, v, voteChecks(v, rules, 1_000n))
+
+    // a tie fails: approval needs STRICTLY more than the threshold
+    const tie = at(2, { for: 300n, against: 300n, abstain: 0n })
+    expect(tie.outcome).toBe('defeated')
+    expect(tie.reason).toMatch(/tied/i)
+
+    // no quorum is distinct from losing the head-to-head
+    const thin = at(2, { for: 10n, against: 0n, abstain: 0n })
+    expect(thin.reason).toMatch(/quorum/i)
+
+    // abstain-only reaches quorum but decides nothing
+    const abstained = at(2, { for: 0n, against: 0n, abstain: 900n })
+    expect(abstained.reason).toMatch(/Abstain/i)
+
+    // queued is final and won; active is provisional
+    expect(at(8, { for: 900n, against: 1n, abstain: 0n })).toMatchObject({ outcome: 'passed', final: true })
+    expect(at(1, { for: 900n, against: 1n, abstain: 0n })).toMatchObject({ outcome: 'undecided', final: false })
+    // a veto beats a winning tally, and says so
+    expect(at(5, { for: 900n, against: 1n, abstain: 0n }).headline).toMatch(/veto/i)
   })
 
   it('fences hand-aligned box-drawing tables so markdown cannot reflow them', () => {

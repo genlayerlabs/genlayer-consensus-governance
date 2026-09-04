@@ -19,7 +19,7 @@ import { InfoHint } from '@/components/InfoHint'
 import { useProposal } from '@/hooks/useProposal'
 import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
-import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, preserveAlignedBlocks, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, voteChecks } from '@/lib/governance'
+import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, preserveAlignedBlocks, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, voteChecks, voteVerdict } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 import { Button } from '@/components/Button'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -95,6 +95,7 @@ export function ProposalPage() {
   const turnout = proposal.votes.for + proposal.votes.against + proposal.votes.abstain
   const decided = proposal.votes.for + proposal.votes.against
   const checks = voteChecks(proposal.votes, proposal.rules, proposal.ges)
+  const verdict = voteVerdict(proposal.state, proposal.votes, checks)
   const descriptionVerified = descriptionHash(proposal.description).toLowerCase() === proposal.core.descriptionHash.toLowerCase()
   const payloadVerified = payloadHash(proposal.operations).toLowerCase() === proposal.core.payloadHash.toLowerCase()
   const reasonTooLong = byteLength(reason) > 1_024
@@ -118,6 +119,14 @@ export function ProposalPage() {
 
     <div className="detail-grid"><div className="detail-main">
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">Vote result</p><h2>Three independent passage rules</h2></div><Button variant="ghost" onClick={() => void refresh()}><RefreshCw size={15} /> Refresh</Button></div>
+        {/* The rule cards below say WHICH condition held; this says who won.
+            Showing only the components leaves the reader to do the boolean
+            algebra, and an executable proposal should never be ambiguous. */}
+        <div className={`verdict verdict-${verdict.outcome}`}>
+          <b>{verdict.headline}</b>
+          <small>{verdict.final ? 'Final — settled on-chain' : 'Provisional — voting is still open'}</small>
+          <p>{verdict.reason}</p>
+        </div>
         <div className="tally"><span><small>For</small><b>{formatGen(proposal.votes.for)} GEN</b><em>{formatPercent(proposal.votes.for, turnout)}</em></span><span><small>Against</small><b>{formatGen(proposal.votes.against)} GEN</b><em>{formatPercent(proposal.votes.against, turnout)}</em></span><span><small>Abstain</small><b>{formatGen(proposal.votes.abstain)} GEN</b><em>{formatPercent(proposal.votes.abstain, turnout)}</em></span></div>
         <div className="rule-grid">
           <Rule title="Turnout / quorum" current={formatPercent(turnout, proposal.ges)} required={`${proposal.rules.quorumBps / 100}% of GES`} met={checks.quorumMet} detail={`${formatGen(turnout)} of ${formatGen(proposal.ges)} GEN snapshot GES; ${formatGen(checks.quorumRequired)} GEN minimum.`} />
