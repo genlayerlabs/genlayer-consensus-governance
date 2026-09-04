@@ -197,12 +197,13 @@ input:hover, textarea:hover, select:hover { border-color: #3a4d48; }
    yellow — waiting on the clock (Timelock, Queued)
    orange — a specific body has to decide (Veto Window, Risk Review)
    red    — terminal failure
-   white  — done, archival: Executed carries no obligation and should recede */
+   neutral — done: Executed carries no obligation, so it takes the same grey
+            as the class and payload pills beside it and recedes into the row */
 .status-active, .status-succeeded { color: var(--green); background: var(--green-dark); }
 .status-timelock, .status-queued { color: var(--yellow); background: #332c14; }
 .status-veto-window, .status-risk-review { color: var(--orange); background: #36271a; }
 .status-defeated, .status-vetoed, .status-expired, .status-voided, .status-spam, .status-execution-failed { color: var(--red); background: #361d20; }
-.status-executed { color: var(--text); background: #0b1211; border: 1px solid var(--line); }
+.status-executed { color: #adbbb7; background: #1c2826; }
 .proposal-primary h2 { margin: 13px 0 7px; font-size: 19px; letter-spacing: -.015em; }
 .proposal-primary p { margin: 0; color: var(--muted); font-size: 12px; }
 .proposal-primary .proposal-dates { margin-top: 5px; color: #70817c; font-size: 10px; }
