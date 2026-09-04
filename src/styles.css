@@ -146,6 +146,15 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .filters { display: grid; grid-template-columns: minmax(260px, 1fr) repeat(4, auto); gap: 10px; margin-bottom: 16px; }
+/* A bare label puts its checkbox on the text baseline, which sat it a few
+   pixels above the inputs beside it in the filter row. */
+.filters .checkbox { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+/* Rule between two halves of one panel — "Your delegation" above the
+   directory that a change there re-reads. */
+.panel-split { border-top: 1px solid var(--line); margin: 26px 0 22px; }
+/* Named rather than a bare glyph: an arrow in a table cell says nothing about
+   where it goes, and the row already links the address to its profile. */
+.voter-list .tx-link { margin-top: 0; align-items: center; gap: 4px; white-space: nowrap; }
 input, textarea, select { color: var(--text); background: #0d1514; border: 1px solid var(--line); border-radius: 9px; min-height: 42px; padding: 10px 12px; }
 input::placeholder, textarea::placeholder { color: #61716d; }
 input:hover, textarea:hover, select:hover { border-color: #3a4d48; }

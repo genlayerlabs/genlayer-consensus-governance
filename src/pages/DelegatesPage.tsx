@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, RefreshCw, ShieldAlert } from 'lucide-react'
+import { AlertTriangle, ExternalLink, RefreshCw, ShieldAlert } from 'lucide-react'
 import GovernanceVotingPowerABI from '@/abi/GovernanceVotingPower.json'
 import { Button } from '@/components/Button'
 import { InfoHint } from '@/components/InfoHint'
@@ -31,18 +31,18 @@ function MyDelegation({ onChanged }: { onChanged: () => void }) {
   const now = BigInt(Math.floor(Date.now() / 1000))
 
   if (!isConnected) {
-    return <section className="panel"><div className="section-heading"><div>
+    return <><div className="section-heading"><div>
       <p className="eyebrow">Your delegation</p><h2>Read-only mode</h2></div></div>
-      <p className="hint">Connect a wallet to see and change where your voting power goes.</p></section>
+      <p className="hint">Connect a wallet to see and change where your voting power goes.</p></>
   }
-  if (error) return <section className="panel"><div className="error-box">{error}</div></section>
-  if (!summary) return <section className="panel"><div className="loading-state">Reading your delegation…</div></section>
+  if (error) return <div className="error-box">{error}</div>
+  if (!summary) return <div className="loading-state">Reading your delegation…</div>
 
   const blockedPositions = summary.positions.filter((position) => !position.meetsFloor && (position.shares > 0n || position.pending > 0n))
   const canDelegateOut = summary.positions.length > 0 && blockedPositions.length === 0
   const done = () => { void refresh(); onChanged() }
 
-  return <section className="panel">
+  return <>
     <div className="section-heading"><div><p className="eyebrow">Your delegation</p>
       <h2>{summary.parked ? 'Parked' : summary.self ? 'Self-delegated' : `Delegated to ${shortAddress(summary.delegate)}`}</h2></div></div>
 
@@ -85,15 +85,16 @@ function MyDelegation({ onChanged }: { onChanged: () => void }) {
         functionName="delegate" args={[ZERO_ADDRESS]} disabled={summary.parked} onConfirmed={done}
       >Park<InfoHint text={HINTS.park} /></TransactionButton>
     </div>
-  </section>
+  </>
 }
 
 export function DelegatesPage() {
   const { currentSet } = useContracts()
   const directory = useDelegateDirectory()
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState('power')
-  const [hideExcluded, setHideExcluded] = useState(false)
+  // Excluded addresses can never vote or delegate, so they are noise by
+  // default — the box is still there to show they exist.
+  const [hideExcluded, setHideExcluded] = useState(true)
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -102,12 +103,8 @@ export function DelegatesPage() {
       if (!needle) return true
       return entry.address.toLowerCase().includes(needle) || entry.delegate.toLowerCase().includes(needle)
     })
-    return [...rows].sort((a, b) => {
-      if (sort === 'delegators') return b.delegators.length - a.delegators.length
-      if (sort === 'address') return a.address.localeCompare(b.address)
-      return a.votingPower === b.votingPower ? 0 : a.votingPower > b.votingPower ? -1 : 1
-    })
-  }, [directory.entries, query, sort, hideExcluded])
+    return [...rows].sort((a, b) => (a.votingPower === b.votingPower ? 0 : a.votingPower > b.votingPower ? -1 : 1))
+  }, [directory.entries, query, hideExcluded])
 
   const total = directory.entries.reduce((sum, entry) => sum + entry.votingPower, 0n)
 
@@ -123,19 +120,15 @@ export function DelegatesPage() {
       <p>Every address that can hold voting power, read directly from staking and the voting-power ledger.</p>
     </div><Button variant="ghost" onClick={() => void directory.refresh()}><RefreshCw size={15} /> Refresh</Button></div>
 
-    <MyDelegation onChanged={() => void directory.refresh()} />
-
     <section className="panel">
+      <MyDelegation onChanged={() => void directory.refresh()} />
+
+      <div className="panel-split" />
       <div className="section-heading"><div><p className="eyebrow">Directory</p><h2>Delegates</h2></div>
         <span>{visible.length} of {directory.entries.length}</span></div>
 
       <div className="filters">
         <input className="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by address" />
-        <select value={sort} onChange={(event) => setSort(event.target.value)}>
-          <option value="power">Voting power</option>
-          <option value="delegators">Delegators</option>
-          <option value="address">Address</option>
-        </select>
         <label className="checkbox"><input type="checkbox" checked={hideExcluded} onChange={(event) => setHideExcluded(event.target.checked)} /> Hide excluded</label>
       </div>
 
@@ -157,7 +150,8 @@ export function DelegatesPage() {
           {entry.isCouncilMember && ' · Security Council'}
           {entry.controller && ` · controlled by ${shortAddress(entry.controller)}`}
         </p>
-        <a href={explorerAddress(entry.address)} target="_blank" rel="noreferrer">↗</a>
+        <a className="tx-link" href={explorerAddress(entry.address)} target="_blank" rel="noreferrer">
+          View on explorer <ExternalLink size={12} /></a>
       </article>)}
       {!directory.loading && visible.length === 0 && <div className="empty inline">
         <p>No addresses matched.</p></div>}
