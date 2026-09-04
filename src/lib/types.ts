@@ -184,3 +184,33 @@ export interface CouncilAction {
   transactionHash?: Hex
   blockNumber?: bigint
 }
+
+// ── Delegation (CON-862) ────────────────────────────────────────────────────
+
+export interface DelegateEntry {
+  address: Address
+  /** live weight this address votes with, including anything delegated in */
+  votingPower: bigint
+  /** who this address currently delegates to; itself when self-delegated */
+  delegate: Address
+  /** true when the weight has been handed to a third party */
+  delegatedAway: boolean
+  /** addresses observed delegating to this one, from the scanned universe */
+  delegators: Address[]
+  excluded: boolean
+  /** non-zero when the address is a contract whose owner controls governance */
+  controller?: Address
+  isCouncilMember: boolean
+}
+
+export interface DelegationSummary {
+  /** the connected account's current delegate */
+  delegate: Address
+  self: boolean
+  parked: boolean
+  votingPower: bigint
+  excluded: boolean
+  cooldownUntil: bigint
+  /** per-validator positions, each measured against MIN_ENTRY_VALUE */
+  positions: { validator: Address; shares: bigint; pending: bigint; value: bigint; meetsFloor: boolean }[]
+}

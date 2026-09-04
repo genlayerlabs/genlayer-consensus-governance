@@ -1,3 +1,44 @@
 [
-  { "type": "function", "name": "getValidatorsJoined", "stateMutability": "view", "inputs": [{ "name": "startIndex", "type": "uint256" }, { "name": "pageSize", "type": "uint256" }], "outputs": [{ "type": "address[]" }] }
+  {
+    "type": "function",
+    "name": "getValidatorsJoined",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "_startIndex", "type": "uint256" },
+      { "name": "_pageSize", "type": "uint256" }
+    ],
+    "outputs": [{ "type": "address[]" }]
+  },
+  {
+    "type": "function",
+    "name": "validatorsJoinedCount",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "type": "uint256" }]
+  },
+  {
+    "type": "function",
+    "name": "validatorDelegatorCount",
+    "stateMutability": "view",
+    "inputs": [{ "name": "_validator", "type": "address" }],
+    "outputs": [{ "type": "uint256" }]
+  },
+  {
+    "type": "function",
+    "name": "getValidatorDelegatorsPaginated",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "_validator", "type": "address" },
+      { "name": "_startIndex", "type": "uint256" },
+      { "name": "_pageSize", "type": "uint256" }
+    ],
+    "outputs": [{ "type": "address[]" }]
+  },
+  {
+    "type": "function",
+    "name": "delegatorJoin",
+    "stateMutability": "payable",
+    "inputs": [{ "name": "_validator", "type": "address" }],
+    "outputs": []
+  }
 ]
