@@ -26,4 +26,16 @@ describe('governance helpers', () => {
   it('formats large GEN values without unsafe Number conversion', () => {
     expect(formatGen(parseEther('462000000.125'), 3)).toBe('462,000,000.125')
   })
+
+  it('keeps sub-unit amounts legible instead of rendering a bare 0', () => {
+    // The proposal bond is 0.1% of GES, so a small GES puts it below the
+    // default two decimals; truncating it to "0" read as "no bond required".
+    expect(formatGen(parseEther('0.005'))).toBe('0.005')
+    expect(formatGen(parseEther('0.05'))).toBe('0.05')
+    expect(formatGen(1n)).toBe('0.000000000000000001')
+    // a genuine zero stays bare, and whole amounts keep the 2-digit default
+    expect(formatGen(0n)).toBe('0')
+    expect(formatGen(parseEther('1501'))).toBe('1,501')
+    expect(formatGen(parseEther('1234.5678'))).toBe('1,234.56')
+  })
 })
