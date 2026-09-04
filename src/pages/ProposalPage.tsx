@@ -244,6 +244,9 @@ export function ProposalPage() {
             args={[id, vetoGround, vetoRationale ? keccak256(stringToHex(vetoRationale)) : ZERO_HASH]}
             disabled={!vetoRationale.trim()} onConfirmed={refresh}
           >Veto proposal</TransactionButton>}
+          {canVeto !== false && !vetoRationale.trim() && <p className="hint">
+            A rationale is required — <code>veto</code> reverts <code>EmptyRationale</code> on a zero hash. Only its
+            keccak hash is stored; publish the text within 72 hours.</p>}
           {canExtend !== false && <TransactionButton address={voting} functionName="extendVetoWindow" args={[id]} variant="secondary" onConfirmed={refresh}>
             Extend veto window
           </TransactionButton>}
