@@ -41,7 +41,8 @@ export async function fetchProposal(voting: Address, id: bigint, account?: Addre
   const set = normalizeSet(setValue)
   // clock() is on GovernanceVotingPower, not GovernanceClock — see the note
   // in useAccountSummary. Reading it from set.clock reverts.
-  const clock = await publicClient.readContract({ address: set.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint
+  // BigInt(): uint48 decodes to a number in viem — see useAccountSummary.
+  const clock = BigInt(await publicClient.readContract({ address: set.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint | number)
   const effectiveSnapshot = (voteStart as bigint) >= clock ? clock - 1n : voteStart as bigint
   const ges = await publicClient.readContract({ address: set.gesRegistry, abi: GovernanceGESRegistryABI, functionName: 'getPastGES', args: [effectiveSnapshot] } as any) as bigint
   const operationPermissions = await Promise.all((operations as any[]).map((operation) => publicClient.readContract({ address: set.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'isPermittedFor', args: [core.classId, operation, id] } as any) as Promise<boolean>))
@@ -65,7 +66,8 @@ export async function fetchProposal(voting: Address, id: bigint, account?: Addre
     title: titleFromDescription(description as string, id), voteStart: voteStart as bigint,
     voteEnd: voteEnd as bigint, votes: normalizeVotes(votes), rules: normalizeRules(rules),
     operations: operations as any, operationPermissions, ges, contractSet: set, connectedVote,
-    postVote: normalizePostVote(postVote), executionEta: executionEta as bigint, executionDeadline: executionDeadline as bigint,
+    // executionEta / executionDeadline are uint48 -> number in viem
+    postVote: normalizePostVote(postVote), executionEta: BigInt(executionEta as bigint | number), executionDeadline: BigInt(executionDeadline as bigint | number),
     transactionHash: creationLog?.transactionHash, blockNumber: creationLog?.blockNumber,
   }
 }
