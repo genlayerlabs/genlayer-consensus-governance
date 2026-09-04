@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
+import { ACTION_TYPE_NAMES, actionThreshold, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -25,6 +25,42 @@ describe('governance helpers', () => {
 
   it('formats large GEN values without unsafe Number conversion', () => {
     expect(formatGen(parseEther('462000000.125'), 3)).toBe('462,000,000.125')
+  })
+
+  it('encodes council actionData to the exact width each type is validated against', () => {
+    // _validateActionData checks an EXACT byte length per type, so a wrong
+    // shape reverts rather than creating a malformed action.
+    const bytes = (hex: string) => (hex.length - 2) / 2
+    expect(bytes(encodeActionData(3, { proposalId: '2' }))).toBe(32)   // RiskReview
+    expect(bytes(encodeActionData(0, { proposalId: '2' }))).toBe(32)   // DesignateSpam
+    expect(bytes(encodeActionData(2, { proposalId: '2', newClass: '1' }))).toBe(64) // RaiseClass
+    expect(bytes(encodeActionData(4, { payloadHash: `0x${'11'.repeat(32)}`, approvalExpiry: '99' }))).toBe(64)
+    expect(bytes(encodeActionData(5, { freezeKind: 1 }))).toBe(32)     // Freeze
+    expect(encodeActionData(6, {})).toBe('0x')                          // Unfreeze — exactly empty
+  })
+
+  it('keeps the ActionType order the enum uses, not the order the prose lists', () => {
+    // RaiseClass is 2 and RiskReview is 3. Swapping them silently creates the
+    // wrong action, which is why this is pinned.
+    expect(ACTION_TYPE_NAMES[2]).toBe('Raise class')
+    expect(ACTION_TYPE_NAMES[3]).toBe('Risk Review')
+    expect(ACTION_TYPE_NAMES[6]).toBe('Unfreeze')
+  })
+
+  it('round-trips an action payload back into something readable', () => {
+    expect(describeActionData(3, encodeActionData(3, { proposalId: '7' }))).toContain('#7')
+    expect(describeActionData(5, encodeActionData(5, { freezeKind: 1 }))).toMatch(/hard/i)
+    expect(describeActionData(6, '0x')).toMatch(/freeze/i)
+    // malformed data must degrade to the raw hex, never throw into the render
+    expect(describeActionData(2, '0x1234')).toBe('0x1234')
+  })
+
+  it('picks the freeze threshold from the action payload, not just its type', () => {
+    const t = { standard: 5, emergency: 7, freezeSoft: 5, freezeHard: 7 }
+    expect(actionThreshold(3, t)).toBe(5)             // Risk Review → standard
+    expect(actionThreshold(4, t)).toBe(7)             // EmergencyApprove → emergency
+    expect(actionThreshold(5, t, 0)).toBe(5)          // soft freeze
+    expect(actionThreshold(5, t, 1)).toBe(7)          // hard freeze — same type, different threshold
   })
 
   it('names the timezone so a shared deadline is unambiguous', () => {

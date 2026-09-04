@@ -115,3 +115,72 @@ export interface VoteRecord {
   transactionHash: Hex
   blockNumber: bigint
 }
+
+// ── Security Council (CON-862) ──────────────────────────────────────────────
+
+/** SecurityCouncil.members() — the array INDEX is the seat id. */
+export interface CouncilMember {
+  seat: number
+  address: Address
+  cohortId: number
+  /** 0 = the genesis sentinel, which reads as HoldOver from day one */
+  termEnd: number
+  electionId: bigint
+  /** SeatStatus: 0 Elected, 1 Active, 2 HoldOver, 3 Vacant */
+  status: number
+}
+
+export interface CouncilThresholds {
+  standard: number
+  emergency: number
+  freezeSoft: number
+  freezeHard: number
+}
+
+export interface CouncilOverview {
+  members: CouncilMember[]
+  seated: number
+  target: number
+  /** seats that count toward a threshold right now */
+  actionable: number
+  membershipVersion: bigint
+  thresholds: CouncilThresholds
+  activationWindow: bigint
+  acceptWindow: bigint
+}
+
+export interface FreezeState {
+  freezeActive: boolean
+  /** FreezeKind: 0 Soft, 1 Hard — stale unless freezeActive */
+  freezeKind: number
+  freezeEnd: bigint
+  maintenanceActive: boolean
+  frozenTotal: bigint
+  /** freeze generation; 0 when no freeze is live. The Unfreeze action's anchor. */
+  generation: bigint
+  /** seconds of freeze already spent in the rolling window */
+  windowUsed: bigint
+  windowBudget: bigint
+  softCap: bigint
+  hardCap: bigint
+  hardCooldown: bigint
+}
+
+export interface CouncilAction {
+  actionId: Hex
+  /** ActionType: 0 DesignateSpam, 1 VoidProposal, 2 RaiseClass, 3 RiskReview,
+   *  4 EmergencyApprove, 5 Freeze, 6 Unfreeze */
+  actionType: number
+  creator: Address
+  actionData: Hex
+  expiresAt: bigint
+  /** ActionStatus: 0 None, 1 Open, 2 Approved, 3 Consumed */
+  status: number
+  /** VALID approvals as recounted on-chain, not the raw tally */
+  approvals: number
+  /** approvers in order, reconstructed from CouncilActionApproved logs */
+  approvers: Address[]
+  executed: boolean
+  transactionHash?: Hex
+  blockNumber?: bigint
+}

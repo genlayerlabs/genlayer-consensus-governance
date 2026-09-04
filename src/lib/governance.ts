@@ -1,4 +1,5 @@
 import {
+  decodeAbiParameters,
   encodeAbiParameters,
   encodeFunctionData,
   formatUnits,
@@ -11,7 +12,7 @@ import {
   type Address,
   type Hex,
 } from 'viem'
-import type { ClassParams, Operation, ProposalCore, ProposalPostVote, ProposalRules, VoteTotals } from './types'
+import type { ClassParams, CouncilThresholds, Operation, ProposalCore, ProposalPostVote, ProposalRules, VoteTotals } from './types'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 export const ZERO_HASH = `0x${'0'.repeat(64)}` as Hex
@@ -291,6 +292,114 @@ export function voteVerdict(state: number, votes: VoteTotals, checks: ReturnType
   }
 }
 
+// ── Security Council (CON-862) ──────────────────────────────────────────────
+
+/**
+ * ActionType, in the ENUM's order — which is not the order the spec prose lists
+ * them in. RaiseClass is 2 and RiskReview is 3; getting these round the wrong
+ * way silently creates the wrong action.
+ */
+export const ACTION_TYPE_NAMES = [
+  'Designate spam',
+  'Void proposal',
+  'Raise class',
+  'Risk Review',
+  'Emergency approve',
+  'Freeze',
+  'Unfreeze',
+]
+
+/** SeatStatus, index = on-chain value. */
+export const SEAT_STATUS_NAMES = ['Elected', 'Active', 'Hold-over', 'Vacant']
+
+/** ActionStatus, index = on-chain value. */
+export const ACTION_STATUS_NAMES = ['None', 'Open', 'Approved', 'Consumed']
+
+export const FREEZE_KIND_NAMES = ['Soft', 'Hard']
+
+/** Cohorts are assigned by seat index / 3; Cohort C re-elects first. */
+export const COHORT_NAMES = ['A', 'B', 'C', 'D']
+
+/**
+ * Which threshold an action must reach.
+ *
+ * Not a constant: Freeze takes the soft or hard freeze threshold depending on
+ * its OWN payload, so the answer depends on actionData, not just the type.
+ */
+export function actionThreshold(actionType: number, thresholds: CouncilThresholds, freezeKind?: number): number {
+  if (actionType === 4) return thresholds.emergency
+  if (actionType === 5) return freezeKind === 1 ? thresholds.freezeHard : thresholds.freezeSoft
+  return thresholds.standard
+}
+
+/**
+ * Encode the actionData for createAction.
+ *
+ * Every type has an EXACT expected byte length checked by _validateActionData,
+ * so a wrong shape reverts rather than creating a malformed action.
+ */
+export function encodeActionData(actionType: number, input: { proposalId?: string; newClass?: string; payloadHash?: string; approvalExpiry?: string; freezeKind?: number }): Hex {
+  switch (actionType) {
+    case 0: // DesignateSpam
+    case 1: // VoidProposal
+    case 3: // RiskReview
+      return encodeAbiParameters([{ type: 'uint256' }], [BigInt(input.proposalId ?? '0')])
+    case 2: // RaiseClass
+      return encodeAbiParameters([{ type: 'uint256' }, { type: 'uint8' }], [BigInt(input.proposalId ?? '0'), Number(input.newClass ?? 0)])
+    case 4: // EmergencyApprove
+      return encodeAbiParameters([{ type: 'bytes32' }, { type: 'uint64' }], [(input.payloadHash ?? ZERO_HASH) as Hex, BigInt(input.approvalExpiry ?? '0')])
+    case 5: // Freeze
+      return encodeAbiParameters([{ type: 'uint8' }], [Number(input.freezeKind ?? 0)])
+    case 6: // Unfreeze — validated as EXACTLY empty
+      return '0x'
+    default:
+      throw new Error(`Unknown action type ${actionType}`)
+  }
+}
+
+/** Human-readable payload for an action row, decoded from its raw actionData. */
+export function describeActionData(actionType: number, actionData: Hex): string {
+  try {
+    switch (actionType) {
+      case 0:
+      case 1:
+      case 3: {
+        const [id] = decodeAbiParameters([{ type: 'uint256' }], actionData)
+        return `Proposal #${id}`
+      }
+      case 2: {
+        const [id, cls] = decodeAbiParameters([{ type: 'uint256' }, { type: 'uint8' }], actionData)
+        return `Proposal #${id} → ${CLASS_NAMES[Number(cls)] ?? `class ${cls}`}`
+      }
+      case 4: {
+        const [hash, expiry] = decodeAbiParameters([{ type: 'bytes32' }, { type: 'uint64' }], actionData)
+        return `Payload ${String(hash).slice(0, 18)}… · approval expires ${formatDate(expiry as bigint)}`
+      }
+      case 5: {
+        const [kind] = decodeAbiParameters([{ type: 'uint8' }], actionData)
+        return `${FREEZE_KIND_NAMES[Number(kind)] ?? 'Unknown'} freeze`
+      }
+      case 6:
+        return 'Lift the active freeze'
+      default:
+        return actionData
+    }
+  } catch {
+    return actionData
+  }
+}
+
+/** The freeze kind inside a Freeze action's payload, for threshold display. */
+export function freezeKindOf(actionType: number, actionData: Hex): number | undefined {
+  if (actionType !== 5) return undefined
+  try {
+    const [kind] = decodeAbiParameters([{ type: 'uint8' }], actionData)
+    return Number(kind)
+  } catch {
+    return undefined
+  }
+}
+
 export function proposalNextAction(state: number, retryAllowed = false): string {
   return [
     'Wait for voting to open', 'Vote before the deadline', 'Settle the defeated proposal',
@@ -309,6 +418,24 @@ export function errorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error)
   const known: Record<string, string> = {
     BelowProposalThreshold: 'The account does not meet the proposal voting-power threshold.',
+    // Council and GLF roles (CON-862). Neither GLF role has a getter, so these
+    // refusals are the only way the UI can report that authorisation failed.
+    OnlyGLFSigner: 'Only the GLF veto signer may do this. The contract exposes no getter for that role, so the UI cannot check it in advance.',
+    OnlyGLFMember: 'Only a Charter-registered GLF member may extend the veto window, and it takes two distinct members.',
+    EmptyRationale: 'A veto must commit to a rationale — the zero hash would leave it unauditable.',
+    NotSitting: 'Creating or approving a council action requires a seat with status Active. An elected but unactivated seat cannot.',
+    StaleRoster: 'The council roster changed after this action was created, which invalidates it. Non-emergency actions are bound to the membership version they were created under and must be re-created.',
+    NotEligibleApprover: 'This member was not on the roster snapshotted when the emergency action was created.',
+    ExpiryTooFar: 'A council action may not expire more than 30 days out.',
+    NoActiveIncident: 'There is nothing for this action to act on — the proposal is not in Risk Review or Timelock, or no freeze is live.',
+    IncidentMismatch: 'The incident moved on between creation and execution, so this action no longer applies.',
+    AlreadyApproved: 'This member has already approved this action.',
+    ActionExpired: 'This action lapsed before it was executed.',
+    EtaImmutable: 'The execution ETA is already fixed — this body has approved, or the timelock has elapsed.',
+    UnknownAction: 'No council action exists with that id.',
+    ExcludedAccount: 'This account is excluded from governance and can neither delegate nor receive delegation.',
+    DelegationEntryBelowMinimum: 'Each validator position must be worth at least the minimum entry value to delegate to a third party. The floor is per position, not on the total.',
+    DelegateAtCapacity: 'That delegate already tracks the maximum number of validators.',
     WrongBond: 'The proposal bond does not match the exact on-chain requirement.',
     TooManyLiveProposals: 'This account already has the maximum number of live proposals.',
     SpamCooldownActive: 'This account or its delegate is under a proposal-spam cooldown.',
