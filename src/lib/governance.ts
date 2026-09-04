@@ -494,8 +494,10 @@ export function electionCranks(state: number): { fn: string; label: string }[] {
     case 1: return [{ fn: 'startEndorsement', label: 'Open endorsement' }]
     case 2: return [{ fn: 'sealSlate', label: 'Seal slate' }]
     case 3: return [{ fn: 'castBallot', label: 'Cast ballot' }]
-    // Succeeded is transient and Failed still needs recording: both settle.
-    case 4: case 5: return [{ fn: 'settleElection', label: 'Settle' }]
+    // Succeeded ONLY. computeState returns Failed exclusively once
+    // election.failed is set, which settle is what sets — so Failed is a
+    // recorded, terminal state and settling again reverts WrongPhase.
+    case 4: return [{ fn: 'settleElection', label: 'Settle' }]
     default: return []
   }
 }
