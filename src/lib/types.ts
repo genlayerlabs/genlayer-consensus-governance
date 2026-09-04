@@ -166,6 +166,12 @@ export interface FreezeState {
   hardCooldown: bigint
 }
 
+export interface CouncilApproval {
+  address: Address
+  at?: bigint
+  transactionHash?: Hex
+}
+
 export interface CouncilAction {
   actionId: Hex
   /** ActionType: 0 DesignateSpam, 1 VoidProposal, 2 RaiseClass, 3 RiskReview,
@@ -178,8 +184,11 @@ export interface CouncilAction {
   status: number
   /** VALID approvals as recounted on-chain, not the raw tally */
   approvals: number
-  /** approvers in order, reconstructed from CouncilActionApproved logs */
-  approvers: Address[]
+  /** approvers in order, reconstructed from CouncilActionApproved logs.
+   *  `at` is the block timestamp, so it is when the approval LANDED, which is
+   *  what a member checking a threshold wants — the contract stores no
+   *  per-approval time at all. */
+  approvers: CouncilApproval[]
   executed: boolean
   transactionHash?: Hex
   blockNumber?: bigint

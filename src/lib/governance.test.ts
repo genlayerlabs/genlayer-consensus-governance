@@ -1,7 +1,7 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
-  ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, truncate } from './governance'
+  ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, throttleBackoffMs, truncate } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -198,5 +198,14 @@ describe('governance helpers', () => {
     expect(message).toContain('nothing was submitted')
     // and a real revert is still translated, not swallowed by the throttle branch
     expect(errorMessage(new Error('reverted: NotSitting()'))).toContain('requires a seat with status Active')
+  })
+
+  it('reports the node\'s own backoff so a retry can honour it', () => {
+    expect(throttleBackoffMs(new Error('error code -32005: ... {"retryAfterMs":642}'))).toBe(642)
+    // throttled without a stated delay is still throttled — 0, not undefined,
+    // or the caller would treat it as a real revert and stop retrying
+    expect(throttleBackoffMs(new Error('node is at capacity'))).toBe(0)
+    // and a genuine refusal must never be retried
+    expect(throttleBackoffMs(new Error('reverted: NotSitting()'))).toBeUndefined()
   })
 })

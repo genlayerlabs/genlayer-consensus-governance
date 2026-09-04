@@ -241,10 +241,13 @@ export function CouncilPage() {
             <span>{targetTitle(action.actionType, action.actionData, proposals)}</span>
             <span>{action.approvals} / {required} approvals</span>
             <span>{action.executed ? 'Executed' : expired ? 'Expired' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
-            <p>
-              By {shortAddress(action.creator)} · {expired ? 'Lapsed' : 'Expires'} {formatDate(action.expiresAt)}
-              {action.approvers.length > 0 && <> · Approved by {action.approvers.map((approver) => shortAddress(approver)).join(', ')}</>}
-            </p>
+            <p>By {shortAddress(action.creator)} · {expired ? 'Lapsed' : 'Expires'} {formatDate(action.expiresAt)}</p>
+            {action.approvers.length > 0 && <div className="approver-list">
+              {action.approvers.map((approval) => <span key={`${approval.address}-${approval.transactionHash}`}>
+                <a href={explorerAddress(approval.address)} target="_blank" rel="noreferrer">{shortAddress(approval.address)}</a>
+                <em>{approval.at === undefined ? 'time unavailable' : formatDate(approval.at)}</em>
+              </span>)}
+            </div>}
             {!action.executed && !expired && <div className="action-buttons">
               <TransactionButton
                 address={currentSet.council} abi={SecurityCouncilABI as never}

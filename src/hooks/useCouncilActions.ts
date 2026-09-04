@@ -4,9 +4,10 @@ import SecurityCouncilABI from '@/abi/SecurityCouncil.json'
 import { deploymentConfig } from '@/config/chain'
 import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
+import { useWallet } from '@/config/WalletContext'
 import { cacheableHead, readCache, writeCache } from '@/lib/logCache'
 import { scanLogs } from '@/lib/rpc'
-import type { CouncilAction } from '@/lib/types'
+import type { CouncilAction, CouncilApproval } from '@/lib/types'
 
 interface CachedCreation {
   actionId: Hex
@@ -33,8 +34,25 @@ interface CachedCreation {
  * `approversOf` is keyed on the bound voting action id, not this one — so the
  * list is rebuilt from CouncilActionApproved logs.
  */
+/** Block timestamps, kept for the life of the tab. A mined block's timestamp
+ *  never changes, so this is the one thing here safe to memoise outright. */
+const blockTimes = new Map<string, bigint>()
+
+async function timestampOf(blockNumber?: bigint): Promise<bigint | undefined> {
+  if (blockNumber === undefined) return undefined
+  const key = blockNumber.toString()
+  const hit = blockTimes.get(key)
+  if (hit !== undefined) return hit
+  try {
+    const block = await publicClient.getBlock({ blockNumber })
+    blockTimes.set(key, block.timestamp)
+    return block.timestamp
+  } catch { return undefined }
+}
+
 export function useCouncilActions() {
   const { currentSet } = useContracts()
+  const { address } = useWallet()
   const [actions, setActions] = useState<CouncilAction[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -94,16 +112,31 @@ export function useCouncilActions() {
         (min, entry) => (entry.blockNumber !== undefined && (min === undefined || entry.blockNumber < min) ? entry.blockNumber : min),
         undefined,
       )
-      const approvalsById = new Map<string, Address[]>()
+      const approvalsById = new Map<string, CouncilApproval[]>()
       const executedIds = new Set<string>()
       if (earliest !== undefined) {
         const [approved, executed] = await Promise.all([
           scanLogs({ address: council, abi: SecurityCouncilABI as never, eventName: 'CouncilActionApproved' as never, fromBlock: earliest, toBlock: head }),
           scanLogs({ address: council, abi: SecurityCouncilABI as never, eventName: 'CouncilActionExecuted' as never, fromBlock: earliest, toBlock: head }),
         ])
-        for (const log of approved as any[]) {
-          const id = String(log.args.actionId).toLowerCase()
-          approvalsById.set(id, [...(approvalsById.get(id) ?? []), log.args.approver])
+        // One getBlock per DISTINCT block, deduped across every action and
+        // cached for the tab. A 9-seat council cannot produce enough approvals
+        // for this to be worth batching.
+        const rawApprovals = (approved as any[]).map((log) => ({
+          id: String(log.args.actionId).toLowerCase(),
+          address: log.args.approver as Address,
+          blockNumber: log.blockNumber as bigint,
+          transactionHash: log.transactionHash as Hex,
+        }))
+        const times = new Map<string, bigint | undefined>()
+        await Promise.all([...new Set(rawApprovals.map((entry) => entry.blockNumber))]
+          .map(async (blockNumber) => { times.set(blockNumber.toString(), await timestampOf(blockNumber)) }))
+        for (const entry of rawApprovals) {
+          approvalsById.set(entry.id, [...(approvalsById.get(entry.id) ?? []), {
+            address: entry.address,
+            at: times.get(entry.blockNumber.toString()),
+            transactionHash: entry.transactionHash,
+          }])
         }
         for (const log of executed as any[]) executedIds.add(String(log.args.actionId).toLowerCase())
       }
@@ -135,5 +168,9 @@ export function useCouncilActions() {
   }, [currentSet])
 
   useEffect(() => { void refresh() }, [refresh])
+  // Approving is the point of this page, and who may approve depends on the
+  // connected account — a wallet switch has to re-read the log, or the member
+  // who just approved still sees the tally they had before switching.
+  useEffect(() => { if (address) void refresh() }, [address, refresh])
   return { actions, loading, error, progress, refresh }
 }

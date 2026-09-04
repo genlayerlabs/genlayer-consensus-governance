@@ -52,6 +52,11 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 .glf-actions label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
 .glf-actions textarea { min-height: 72px; }
 .action-buttons { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; margin-top: 8px; }
+/* Who approved, and when. The contract stores no per-approval timestamp, so
+   these come from the block each CouncilActionApproved landed in. */
+.approver-list { display: flex; flex-wrap: wrap; gap: 6px 14px; grid-column: 1 / -1; margin-top: 6px; font-size: 11px; }
+.approver-list span { display: inline-flex; align-items: center; gap: 6px; }
+.approver-list em { color: var(--muted); font-style: normal; }
 .encoded-preview { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #090f0e; }
 .encoded-preview small { display: block; color: var(--muted); font-size: 11px; margin-bottom: 4px; }
 .encoded-preview code { font-size: 11px; word-break: break-all; color: var(--text); }
