@@ -50,6 +50,49 @@ export async function scanLogs(params: {
   return logs
 }
 
+/**
+ * Newest-first hunt for a single event, for metadata that must not block a
+ * render (a proposal's creation transaction, say).
+ *
+ * scanLogs walks FORWARD from `fromBlock`, which is genesis whenever
+ * VITE_DEPLOYMENT_START_BLOCK is unset — on a chain 20M blocks deep that is
+ * ~2,000 sequential capped requests before the caller sees anything. A recent
+ * proposal is found here in one request instead.
+ *
+ * Best-effort by contract: returns undefined rather than throwing when the
+ * event is outside the searched window, so the page renders without the
+ * decoration.
+ */
+export async function findLatestLogBackwards(params: {
+  address: Address
+  abi: Abi
+  eventName: ContractEventName<Abi>
+  args?: Record<string, unknown>
+  floor?: bigint
+  maxPages?: number
+}): Promise<any | undefined> {
+  const chunk = deploymentConfig.maxBlockRange
+  const maxPages = params.maxPages ?? 24
+  const floor = params.floor ?? 0n
+  let to = await publicClient.getBlockNumber()
+  for (let page = 0; page < maxPages && to >= floor; page++) {
+    const from = to >= chunk - 1n && to - chunk + 1n > floor ? to - chunk + 1n : floor
+    try {
+      const logs = await publicClient.getLogs({
+        address: params.address,
+        event: (params.abi as any).find((entry: any) => entry.type === 'event' && entry.name === params.eventName),
+        args: params.args,
+        fromBlock: from as BlockNumber,
+        toBlock: to as BlockNumber,
+      } as GetLogsParameters)
+      if (logs.length > 0) return logs.at(-1)
+    } catch { return undefined }
+    if (from === floor) break
+    to = from - 1n
+  }
+  return undefined
+}
+
 export function explorerTx(hash: Hex) {
   return `${deploymentConfig.explorerUrl}/tx/${hash}`
 }
