@@ -48,6 +48,17 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 .account-summary > span, .account-summary > div > span:last-child { display: flex; flex-direction: column; gap: 2px; }
 .account-summary small { color: var(--muted); font-size: 11px; }
 .account-summary b { font-size: 13px; font-weight: 600; }
+.vote-as { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.vote-as > small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.vote-as-list { display: flex; flex-direction: column; gap: 6px; }
+.vote-as-list button { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 10px; width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.vote-as-list button b { font-size: 13px; font-weight: 600; }
+.vote-as-list button em { grid-row: 1 / span 2; align-self: center; font-style: normal; font-size: 12px; color: var(--muted); }
+.vote-as-list button span { grid-column: 1; font-size: 11px; color: var(--muted); }
+.vote-as-list button:hover:not(:disabled) { border-color: var(--green); }
+.vote-as-list button.selected { border-color: var(--green); background: var(--green-dark); }
+.vote-as-list button:disabled { opacity: .45; cursor: not-allowed; }
+
 .info-hint { position: relative; display: inline-flex; align-items: center; color: var(--muted); cursor: help; vertical-align: middle; margin-left: 4px; }
 .info-hint:hover, .info-hint:focus-visible { color: var(--text); outline: none; }
 .info-hint-bubble { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 20; width: max-content; max-width: 260px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #0d1614; color: var(--text); font-size: 11px; font-weight: 400; line-height: 1.5; text-align: left; white-space: normal; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); opacity: 0; visibility: hidden; transition: opacity .12s ease; }
