@@ -90,7 +90,11 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 
 .info-hint { position: relative; display: inline-flex; align-items: center; color: var(--muted); cursor: help; vertical-align: middle; margin-left: 4px; }
 .info-hint:hover, .info-hint:focus-visible { color: var(--text); outline: none; }
-.info-hint-bubble { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 20; width: max-content; max-width: 260px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #0d1614; color: var(--text); font-size: 11px; font-weight: 400; line-height: 1.5; text-align: left; white-space: normal; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); opacity: 0; visibility: hidden; transition: opacity .12s ease; }
+/* The bubble is a child of the label, and those labels are uppercase with
+   wide tracking — the tooltip inherited both and rendered as a wall of
+   spaced-out capitals that read far larger than the 11px it is set to.
+   Reset the inherited text treatment; sentence case is what a tooltip wants. */
+.info-hint-bubble { text-transform: none; letter-spacing: normal; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 20; width: max-content; max-width: 260px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #0d1614; color: var(--text); font-size: 11px; font-weight: 400; line-height: 1.5; text-align: left; white-space: normal; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); opacity: 0; visibility: hidden; transition: opacity .12s ease; }
 .info-hint:hover .info-hint-bubble, .info-hint:focus-visible .info-hint-bubble { opacity: 1; visibility: visible; }
 .account-summary small { display: inline-flex; align-items: center; }
 
