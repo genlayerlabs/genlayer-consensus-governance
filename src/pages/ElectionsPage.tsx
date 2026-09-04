@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertTriangle, RefreshCw, ShieldAlert } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import type { Address } from 'viem'
 import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json'
 import { Button } from '@/components/Button'
@@ -26,7 +26,9 @@ const HINTS = {
 }
 
 function ElectionCard({ election, elections }: { election: ElectionSummary; elections?: Address }) {
-  const [open, setOpen] = useState(false)
+  // Open by default: the slate, candidates and ballot are the page — hiding
+  // them behind a click made an election look like a one-line stub.
+  const [open, setOpen] = useState(true)
   const [picks, setPicks] = useState('')
   const candidates = useElectionCandidates(open ? election.id : undefined, election.blockNumber)
 
@@ -112,20 +114,6 @@ export function ElectionsPage() {
       <p>Bootstrap, cohort, special, recall and runoff elections, read directly from chain.</p>
     </div><Button variant="ghost" onClick={() => void refresh()}><RefreshCw size={15} /> Refresh</Button></div>
 
-    <section className="panel">
-      <div className="section-heading"><div><p className="eyebrow">Contract limits</p><h2>What this page cannot show</h2></div></div>
-      <div className="role-note"><ShieldAlert size={18} /><p><b>Nomination is not offered here</b>
-        <code>nominate</code> requires an exact <code>msg.value</code> of bond plus registration fee plus manifesto
-        storage. None of <code>candidateBond</code>, <code>registrationFee</code> or <code>storageFeePerByte</code>
-        has a getter, and their setters emit no events, so the required amount is neither readable on-chain nor
-        recoverable from logs. Guessing would revert <code>WrongPayment</code>, so the form is omitted — a missing
-        contract getter, not a missing feature.</p></div>
-      <div className="role-note"><AlertTriangle size={18} /><p><b>No live phase countdown, turnout or quorum</b>
-        There is no <code>elections(id)</code> struct getter, so creation time, phase offsets, the endorsement
-        snapshot and the effective quorum are unreadable. Turnout appears only after settlement, through
-        <code>ElectionSettled</code> and <code>ElectionFailed</code>. The Registration-versus-Endorsement
-        sub-phase, the runoff queue, pending recalls and cohort due dates are likewise not exposed.</p></div>
-    </section>
 
     {error && <div className="error-box">{error}</div>}
     {loading && elections.length === 0 && <div className="loading-state">Reading elections directly from chain…</div>}
