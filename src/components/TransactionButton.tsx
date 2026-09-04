@@ -56,7 +56,23 @@ export function TransactionButton({ address, abi, functionName, args, value, chi
       }
       setRetrying(0)
       setHash(transactionHash)
-      await publicClient.waitForTransactionReceipt({ hash: transactionHash!, confirmations: 1 })
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: transactionHash!, confirmations: 1 })
+      // waitForTransactionReceipt resolves for a REVERTED transaction too — it
+      // waits for mining, not for success. Without this check the button said
+      // "Confirmed" over a failed council execution, which is the one place a
+      // false success is most expensive: the action stays unconsumed and the
+      // member walks away believing it landed.
+      if (receipt.status !== 'success') {
+        // The receipt carries no reason, so replay the same call at head to
+        // recover one — the state that rejected it is still the live state.
+        let reason = ''
+        try {
+          await publicClient.simulateContract({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value, account } as never)
+        } catch (replayError) { reason = errorMessage(replayError) }
+        setHash(undefined)
+        setError(reason || 'The transaction was mined but reverted. Nothing changed on-chain.')
+        return
+      }
       await onConfirmed?.()
     } catch (error) { setError(errorMessage(error)) }
     finally { setPending(false); setRetrying(0) }
