@@ -478,6 +478,28 @@ export const ELECTION_KIND_NAMES = ['Bootstrap', 'Cohort', 'Special', 'Recall', 
  * quorum and the GES denominator are all unreadable, so the outcome genuinely
  * cannot be predicted from views; settling is what decides it.
  */
+/**
+ * Which crank belongs to an election in this state.
+ *
+ * Every crank was offered at once, so after Open endorsement succeeded the
+ * button simply read "Confirmed" and could be pressed again — the call is
+ * idempotent, so a simulation would not have caught it either. The phase is
+ * what decides: `startEndorsement` belongs to Nomination and nowhere else.
+ *
+ * ElectionState: 0 Scheduled, 1 Nomination, 2 Preparation, 3 Voting,
+ * 4 Succeeded, 5 Failed, 6 Settled.
+ */
+export function electionCranks(state: number): { fn: string; label: string }[] {
+  switch (state) {
+    case 1: return [{ fn: 'startEndorsement', label: 'Open endorsement' }]
+    case 2: return [{ fn: 'sealSlate', label: 'Seal slate' }]
+    case 3: return [{ fn: 'castBallot', label: 'Cast ballot' }]
+    // Succeeded is transient and Failed still needs recording: both settle.
+    case 4: case 5: return [{ fn: 'settleElection', label: 'Settle' }]
+    default: return []
+  }
+}
+
 export function electionNextAction(state: number): string {
   return [
     'Waiting to open',

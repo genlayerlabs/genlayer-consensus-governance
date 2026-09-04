@@ -8,7 +8,7 @@ import { TransactionButton } from '@/components/TransactionButton'
 import { useContracts } from '@/config/ContractsContext'
 import { useElectionCandidates, useElections } from '@/hooks/useElections'
 import {
-  ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction,
+  ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction,
   formatDate, formatGen, shortAddress,
 } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
@@ -25,7 +25,7 @@ const HINTS = {
     'Limited voting: one to three distinct slated candidates, each receiving your full snapshot weight. One ballot per account, no recasting.',
 }
 
-function ElectionCard({ election, elections }: { election: ElectionSummary; elections?: Address }) {
+function ElectionCard({ election, elections, onChanged }: { election: ElectionSummary; elections?: Address; onChanged: () => void }) {
   // Open by default: the slate, candidates and ballot are the page — hiding
   // them behind a click made an election look like a one-line stub.
   const [open, setOpen] = useState(true)
@@ -33,6 +33,7 @@ function ElectionCard({ election, elections }: { election: ElectionSummary; elec
   const candidates = useElectionCandidates(open ? election.id : undefined, election.blockNumber)
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
+  const cranks = electionCranks(election.state)
 
   return <article className="panel election-card">
     <div className="section-heading"><div>
@@ -74,25 +75,31 @@ function ElectionCard({ election, elections }: { election: ElectionSummary; elec
         <p>No candidates found in the scanned range.</p></div>}
       </div>
 
-      <div className="form-grid">
+      {cranks.some((crank) => crank.fn === 'castBallot') && <div className="form-grid">
         <label className="full"><span className="label-text">Ballot — one to three slated candidates<InfoHint text={HINTS.ballot} /></span>
           <input value={picks} onChange={(event) => setPicks(event.target.value)} placeholder="0xabc…, 0xdef…" />
         </label>
-      </div>
+      </div>}
       <div className="action-buttons">
-        <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never}
-          functionName="castBallot" args={[election.id, picked]}
-          disabled={picked.length < 1 || picked.length > 3} onConfirmed={() => void candidates.refresh()}>
-          Cast ballot
-        </TransactionButton>
-        <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} variant="secondary"
-          functionName="startEndorsement" args={[election.id]}>Open endorsement</TransactionButton>
-        <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} variant="secondary"
-          functionName="sealSlate" args={[election.id]}>Seal slate</TransactionButton>
-        <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} variant="secondary"
-          functionName="settleElection" args={[election.id]}>Settle</TransactionButton>
-        <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} variant="ghost"
-          functionName="claimBond" args={[election.id]}>Claim bond</TransactionButton>
+        {/* Only the crank this phase actually accepts. The others are not
+            disabled but absent: startEndorsement is idempotent, so calling it
+            twice succeeds silently and the button would sit there reading
+            "Confirmed" forever, inviting a second pointless transaction. */}
+        {cranks.map((crank) => <TransactionButton key={crank.fn}
+          address={elections} abi={GovernanceCouncilElectionsABI as never}
+          functionName={crank.fn}
+          args={crank.fn === 'castBallot' ? [election.id, picked] : [election.id]}
+          disabled={crank.fn === 'castBallot' && (picked.length < 1 || picked.length > 3)}
+          onConfirmed={() => { void candidates.refresh(); onChanged() }}>
+          {crank.label}
+        </TransactionButton>)}
+        {/* Claimable the moment the slate is sealed without you on it, not
+            only after settlement — so it stands apart from the phase crank. */}
+        {election.state >= 2 && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never}
+          functionName="claimBond" args={[election.id]} variant="ghost"
+          onConfirmed={() => void candidates.refresh()}>Claim bond</TransactionButton>}
+        {cranks.length === 0 && election.state < 2 && <p className="hint">
+          Nothing to crank in this phase — registration is open and needs no transaction.</p>}
       </div>
     </>}
   </article>
@@ -127,6 +134,6 @@ export function ElectionsPage() {
         functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start an election</TransactionButton>
     </section>}
 
-    {elections.map((election) => <ElectionCard key={election.id.toString()} election={election} elections={currentSet.elections} />)}
+    {elections.map((election) => <ElectionCard key={election.id.toString()} election={election} elections={currentSet.elections} onChanged={() => void refresh()} />)}
   </div>
 }
