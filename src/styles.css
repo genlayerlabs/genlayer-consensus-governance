@@ -99,6 +99,11 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 
 .page { width: min(980px, calc(100% - 40px)); margin: 0 auto; padding: 54px 0 80px; }
 .page.wide { width: min(1320px, calc(100% - 48px)); }
+/* Panels stacked straight into a page had no separation — only ProposalPage
+   put them in a gapped flex column, so /council, /delegates and /elections
+   ran their sections together edge to edge. General sibling, not adjacent,
+   so an error box or a loading line between two panels keeps the gap. */
+.page > .panel ~ .panel, .page > .panel ~ .empty, .page > .empty ~ .panel { margin-top: 16px; }
 .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-bottom: 34px; }
 .hero h1, .proposal-header h1 { margin: 4px 0 8px; font-size: clamp(28px, 3vw, 38px); line-height: 1.08; letter-spacing: -.035em; }
 .hero p:not(.eyebrow), .proposal-header > p { margin: 0; color: var(--muted); font-size: 16px; }
@@ -237,7 +242,12 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .tabs button.active { color: var(--text); border-color: var(--green); }
 .scan-progress { color: var(--muted); font-size: 11px; }
 .voter-list { display: flex; flex-direction: column; margin-bottom: 16px; }
-.voter-list article { display: grid; grid-template-columns: 8px 95px 64px 1fr 1fr minmax(120px, 1.4fr) 24px; align-items: center; gap: 10px; padding: 12px 5px; border-bottom: 1px solid var(--line); font-size: 11px; }
+/* Rows carry six or seven cells depending on the page (only some end in a
+   link), so the last track is `auto` and collapses when nothing lands in it.
+   The third was a hard 64px, which wrapped "Seat 0 · Cohort A" onto two lines
+   while the flexible tracks to its right sat half empty — max-content lets it
+   take what it needs and the 1fr tracks absorb the rest. */
+.voter-list article { display: grid; grid-template-columns: 8px 95px minmax(64px, max-content) 1fr 1fr minmax(120px, 1.4fr) auto; align-items: center; gap: 10px; padding: 12px 5px; border-bottom: 1px solid var(--line); font-size: 11px; }
 .voter-list article p { margin: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vote-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
 .vote-dot.support-1 { background: var(--green); }
@@ -248,7 +258,9 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .vote-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0; }
 .vote-options button, .class-grid button { border: 1px solid var(--line); background: #0d1514; color: var(--muted); border-radius: 9px; padding: 10px; cursor: pointer; }
 .vote-options button.selected, .class-grid button.selected { color: #06110c; background: var(--green); border-color: var(--green); }
-.detail-aside label, .builder-main label { display: flex; flex-direction: column; gap: 6px; color: #bdc9c5; font-size: 12px; }
+/* .form-grid was missing here, so its labels stayed inline blocks and the
+   control sat on the same line, right up against the label text. */
+.detail-aside label, .builder-main label, .form-grid label { display: flex; flex-direction: column; gap: 6px; color: #bdc9c5; font-size: 12px; }
 .detail-aside textarea { min-height: 94px; resize: vertical; }
 .detail-aside label small { align-self: flex-end; color: var(--muted); }
 .transaction-action { margin-top: 12px; }
