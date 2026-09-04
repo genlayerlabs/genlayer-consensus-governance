@@ -109,16 +109,22 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
    so an error box or a loading line between two panels keeps the gap. */
 .page > * ~ .panel, .page > * ~ .empty, .page > * ~ .split-row { margin-top: 16px; }
 /* Paired panels: Composition beside Governance clock, Roster beside the action
-   composer. `start` rather than stretch — the roster is nine rows tall and the
-   composer should not grow a tall empty tail to match it. */
-.split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+   composer. They stretch to a common height, and each is a column so a panel
+   with a trailing action can push it to the foot rather than leave it stranded
+   mid-panel above the empty tail. */
+.split-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.split-row > .panel { display: flex; flex-direction: column; }
+.split-row > .panel > .transaction-action { margin-top: auto; padding-top: 14px; }
 .split-row > .panel { min-width: 0; }
 /* A roster row in half a page is narrower than the sum of its tracks' own
    min-content widths, and grid tracks refuse to shrink past that — the row
    would push a scrollbar through the panel. minmax(0, …) lets every track
    give, and the cells clip with an ellipsis instead. */
 .split-row .voter-list article { grid-template-columns: 8px minmax(0, 95px) minmax(0, max-content) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto; gap: 8px; }
-.split-row .voter-list article > a, .split-row .voter-list article > b, .split-row .voter-list article > span:not(.vote-dot) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.split-row .voter-list article > a, .split-row .voter-list article > b, .split-row .voter-list article > span:not(.vote-dot):not(.seat-status) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* .seat-status is exempt above because it holds a hint, and the bubble is
+   positioned inside it — overflow: hidden clipped the tooltip to a sliver of
+   the cell. Status names are two words, so there is nothing to ellipsise. */
 .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-bottom: 34px; }
 .hero h1, .proposal-header h1 { margin: 4px 0 8px; font-size: clamp(28px, 3vw, 38px); line-height: 1.08; letter-spacing: -.035em; }
 .hero p:not(.eyebrow), .proposal-header > p { margin: 0; color: var(--muted); font-size: 16px; }
@@ -289,6 +295,7 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .transaction-action { margin-top: 12px; }
 .transaction-action > .button { width: 100%; }
 .tx-link { color: var(--green); font-size: 11px; display: inline-flex; margin-top: 7px; }
+.role-note.compact { align-items: center; gap: 7px; padding: 7px 11px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 .role-note { display: flex; gap: 10px; color: var(--orange); background: #2b2117; border: 1px solid #5f4228; border-radius: 10px; padding: 12px; }
 .role-note p { margin: 0; display: flex; flex-direction: column; gap: 3px; font-size: 11px; line-height: 1.45; }
 .proposal-settings { display: grid; gap: 0; margin-top: 18px; border-top: 1px solid var(--line); }
