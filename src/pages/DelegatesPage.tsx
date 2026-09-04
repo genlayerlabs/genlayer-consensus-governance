@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { AlertTriangle, ExternalLink, RefreshCw, ShieldAlert } from 'lucide-react'
 import GovernanceVotingPowerABI from '@/abi/GovernanceVotingPower.json'
 import { Button } from '@/components/Button'
@@ -155,10 +154,8 @@ export function DelegatesPage() {
           {entry.isCouncilMember && ' · Security Council'}
           {entry.controller && ` · controlled by ${shortAddress(entry.controller)}`}
         </p>
-        <span className="row-links">
-          <Link to={`/address/${entry.address}`}>Profile</Link>
-          <a href={explorerAddress(entry.address)} target="_blank" rel="noreferrer">Explorer <ExternalLink size={12} /></a>
-        </span>
+        <a className="tx-link" href={explorerAddress(entry.address)} target="_blank" rel="noreferrer">
+          View on explorer <ExternalLink size={12} /></a>
       </article>)}
       {!directory.loading && visible.length === 0 && <div className="empty inline">
         <p>No addresses matched.</p></div>}
