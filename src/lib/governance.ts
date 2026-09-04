@@ -35,7 +35,17 @@ export function shortAddress(address?: string): string {
 export function formatGen(value: bigint, maximumFractionDigits = 2): string {
   const [whole, fraction = ''] = formatUnits(value, 18).split('.')
   const formattedWhole = BigInt(whole).toLocaleString()
-  const trimmed = fraction.slice(0, maximumFractionDigits).replace(/0+$/, '')
+  let digits = maximumFractionDigits
+  // A sub-unit amount would truncate to a bare "0" at two decimals, which
+  // reads as "free" for figures that are neither zero nor optional — the
+  // proposal bond is 0.1% of GES and rendered "0 GEN". When there is no whole
+  // part, extend precision far enough to reach the first significant digit
+  // (plus one) so the magnitude is always visible.
+  if (BigInt(whole) === 0n && value !== 0n) {
+    const firstSignificant = fraction.search(/[1-9]/)
+    if (firstSignificant >= 0) digits = Math.max(digits, firstSignificant + 2)
+  }
+  const trimmed = fraction.slice(0, digits).replace(/0+$/, '')
   return trimmed ? `${formattedWhole}.${trimmed}` : formattedWhole
 }
 
