@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check, LoaderCircle } from 'lucide-react'
-import type { Address } from 'viem'
+import type { Abi, Address } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import { publicClient } from '@/config/clients'
 import { useWallet } from '@/config/WalletContext'
@@ -8,8 +8,11 @@ import { errorMessage } from '@/lib/governance'
 import { explorerTx } from '@/lib/rpc'
 import { Button } from './Button'
 
-export function TransactionButton({ address, functionName, args, value, children, variant = 'primary', disabled, onConfirmed }: {
+export function TransactionButton({ address, abi, functionName, args, value, children, variant = 'primary', disabled, onConfirmed }: {
   address?: Address
+  /** defaults to GovernanceVoting; pass another ABI to call a different contract
+   *  (a validator wallet's govCastVote passthrough, for instance) */
+  abi?: Abi
   functionName: string
   args: readonly unknown[]
   value?: bigint
@@ -26,7 +29,7 @@ export function TransactionButton({ address, functionName, args, value, children
     if (!address) return
     setPending(true); setError(''); setHash(undefined)
     try {
-      const transactionHash = await writeContract({ address, abi: GovernanceVotingABI, functionName, args, value })
+      const transactionHash = await writeContract({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value })
       setHash(transactionHash)
       await publicClient.waitForTransactionReceipt({ hash: transactionHash, confirmations: 1 })
       await onConfirmed?.()

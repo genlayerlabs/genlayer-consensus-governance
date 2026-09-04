@@ -1,0 +1,7 @@
+[
+  { "type": "function", "name": "owner", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "address" }] },
+  { "type": "function", "name": "getOperator", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "address" }] },
+  { "type": "function", "name": "governanceController", "stateMutability": "view", "inputs": [], "outputs": [{ "type": "address" }] },
+  { "type": "function", "name": "govCastVote", "stateMutability": "nonpayable", "inputs": [{ "name": "proposalId", "type": "uint256" }, { "name": "support", "type": "uint8" }, { "name": "reason", "type": "string" }], "outputs": [] },
+  { "type": "function", "name": "govDelegate", "stateMutability": "nonpayable", "inputs": [{ "name": "to", "type": "address" }], "outputs": [] }
+]

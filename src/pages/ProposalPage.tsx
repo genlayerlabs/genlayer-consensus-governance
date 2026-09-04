@@ -12,8 +12,10 @@ import GovernanceClockABI from '@/abi/GovernanceClock.json'
 import GovernanceGESRegistryABI from '@/abi/GovernanceGESRegistry.json'
 import GovernanceABI from '@/abi/Governance.json'
 import GovernanceL1BridgeABI from '@/abi/GovernanceL1Bridge.json'
+import ValidatorWalletABI from '@/abi/ValidatorWallet.json'
 import { useContracts } from '@/config/ContractsContext'
 import { useProposal } from '@/hooks/useProposal'
+import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
 import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, voteChecks } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
@@ -66,12 +68,18 @@ export function ProposalPage() {
   const { proposalId } = useParams()
   const id = parseId(proposalId)
   const { voting } = useContracts()
-  const { isConnected } = useWallet()
+  const { isConnected, address } = useWallet()
   const { proposal, loading, error, refresh } = useProposal(id)
   const voters = useVoteRecords(voting, id, proposal?.blockNumber)
   const [support, setSupport] = useState(1)
   const [reason, setReason] = useState('')
   const [voterFilter, setVoterFilter] = useState('all')
+  // '' = the connected EOA; otherwise the validator wallet to vote THROUGH
+  const [voteAs, setVoteAs] = useState('')
+
+  // Hooks must run before the early returns below, so this sits with the other
+  // hooks rather than beside the derived values that consume it.
+  const validatorWallets = useValidatorWallets(id, proposal?.voteStart)
 
   const allFilteredVoters = useMemo(() => voters.records.filter((record) => voterFilter === 'all' || record.support === Number(voterFilter)), [voters.records, voterFilter])
   const filteredVoters = allFilteredVoters.slice(0, voters.visibleCount)
@@ -86,7 +94,13 @@ export function ProposalPage() {
   const descriptionVerified = descriptionHash(proposal.description).toLowerCase() === proposal.core.descriptionHash.toLowerCase()
   const payloadVerified = payloadHash(proposal.operations).toLowerCase() === proposal.core.payloadHash.toLowerCase()
   const reasonTooLong = byteLength(reason) > 1_024
-  const canVote = proposal.state === 1 && !proposal.connectedVote?.hasVoted && (proposal.connectedVote?.weight ?? 0n) > 0n
+  const selectedWallet = validatorWallets.wallets.find((wallet) => wallet.address === voteAs)
+  // Governance rights on a validator wallet are onlyOwner, so a wallet the
+  // connected account owns votes ITS OWN snapshot weight through the
+  // govCastVote passthrough — never the EOA's.
+  const activeWeight = selectedWallet ? selectedWallet.weight : (proposal.connectedVote?.weight ?? 0n)
+  const activeHasVoted = selectedWallet ? selectedWallet.hasVoted : Boolean(proposal.connectedVote?.hasVoted)
+  const canVote = proposal.state === 1 && !activeHasVoted && activeWeight > 0n
   const hasL1 = proposal.operations.some((operation) => operation.target.toLowerCase() === proposal.contractSet.l1Bridge.toLowerCase())
 
   return <div className="page wide proposal-detail">
@@ -127,7 +141,29 @@ export function ProposalPage() {
     <aside className="detail-aside">
       <section className="panel sticky"><p className="eyebrow">Your action</p><h2>{proposal.state === 1 ? 'Cast vote' : STATE_NAMES[proposal.state]}</h2>
         {proposal.connectedVote && <div className="your-power"><small>Snapshot voting power</small><b>{formatGen(proposal.connectedVote.weight)} GEN</b><p>{proposal.connectedVote.hasVoted ? `Voted ${proposal.connectedVote.support === undefined ? '' : SUPPORT_NAMES[proposal.connectedVote.support]}` : 'Not voted'}</p></div>}
-        {proposal.state === 1 && <><div className="vote-options">{SUPPORT_NAMES.map((name, index) => <button className={support === index ? 'selected' : ''} onClick={() => setSupport(index)} key={name}>{name}</button>)}</div><label>Optional on-chain reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why are you voting this way?" /><small className={reasonTooLong ? 'danger-text' : ''}>{byteLength(reason).toLocaleString()} / 1,024 bytes</small></label><TransactionButton address={voting} functionName={reason ? 'castVoteWithReason' : 'castVote'} args={reason ? [id, support, reason] : [id, support]} disabled={!canVote || reasonTooLong} onConfirmed={refresh}><Vote size={16} /> Cast {SUPPORT_NAMES[support]} vote</TransactionButton>{!isConnected && <p className="hint">Connect a wallet to vote.</p>}{proposal.connectedVote?.hasVoted && <p className="hint">This account already voted.</p>}{proposal.connectedVote && proposal.connectedVote.weight === 0n && <p className="hint">This account had zero weight at the snapshot.</p>}</>}
+        {proposal.state === 1 && <><div className="vote-as"><small>Vote as</small><div className="vote-as-list">
+          <button className={voteAs === '' ? 'selected' : ''} onClick={() => setVoteAs('')}>
+            <b>{shortAddress(address ?? '0x')}</b><span>Connected account</span>
+            <em>{formatGen(proposal.connectedVote?.weight ?? 0n)} GEN</em>
+          </button>
+          {validatorWallets.wallets.map((wallet) => {
+            // Listed even when unusable: an owner needs to see WHY a validator
+            // cannot vote, not merely find it missing.
+            const blocked = wallet.hasVoted ? 'Already voted' : wallet.delegatedTo ? `Delegated to ${shortAddress(wallet.delegatedTo)}` : wallet.weight === 0n ? 'No weight at snapshot' : ''
+            return <button key={wallet.address} className={voteAs === wallet.address ? 'selected' : ''} disabled={Boolean(blocked)} onClick={() => setVoteAs(wallet.address)} title={blocked || undefined}>
+              <b>{shortAddress(wallet.address)}</b><span>{blocked || 'Validator'}</span>
+              <em>{formatGen(wallet.weight)} GEN</em>
+            </button>
+          })}
+        </div>{validatorWallets.loading && <small className="muted">Looking up your validators…</small>}{validatorWallets.error && <small className="danger-text">Validator lookup failed: {validatorWallets.error}</small>}</div><div className="vote-options">{SUPPORT_NAMES.map((name, index) => <button className={support === index ? 'selected' : ''} onClick={() => setSupport(index)} key={name}>{name}</button>)}</div><label>Optional on-chain reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why are you voting this way?" /><small className={reasonTooLong ? 'danger-text' : ''}>{byteLength(reason).toLocaleString()} / 1,024 bytes</small></label><TransactionButton
+          address={selectedWallet ? selectedWallet.address : voting}
+          abi={selectedWallet ? (ValidatorWalletABI as never) : undefined}
+          // The wallet passthrough is always the 3-arg form; '' means no reason.
+          functionName={selectedWallet ? 'govCastVote' : reason ? 'castVoteWithReason' : 'castVote'}
+          args={selectedWallet ? [id, support, reason] : reason ? [id, support, reason] : [id, support]}
+          disabled={!canVote || reasonTooLong}
+          onConfirmed={async () => { await refresh(); await validatorWallets.refresh() }}
+        ><Vote size={16} /> Cast {SUPPORT_NAMES[support]} vote{selectedWallet ? ` as ${shortAddress(selectedWallet.address)}` : ''}</TransactionButton>{!isConnected && <p className="hint">Connect a wallet to vote.</p>}{activeHasVoted && <p className="hint">{selectedWallet ? 'This validator already voted.' : 'This account already voted.'}</p>}{!activeHasVoted && activeWeight === 0n && <p className="hint">{selectedWallet ? 'This validator had no weight at the snapshot.' : 'This account had zero weight at the snapshot.'}</p>}</>}
         {(proposal.state === 2 || proposal.state === 3) && <TransactionButton address={voting} functionName="settle" args={[id]} onConfirmed={refresh}>Settle proposal</TransactionButton>}
         {(proposal.state === 8 || (proposal.state === 10 && proposal.core.retryAllowed)) && <TransactionButton address={voting} functionName="execute" args={[id]} onConfirmed={refresh}>{proposal.state === 10 ? 'Retry execution' : 'Execute proposal'}</TransactionButton>}
         {proposal.state === 11 && <TransactionButton address={voting} functionName="expire" args={[id]} onConfirmed={refresh}>Record expiry</TransactionButton>}
