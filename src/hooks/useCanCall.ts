@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Abi, Address } from 'viem'
 import { publicClient } from '@/config/clients'
+import { errorMessage } from '@/lib/governance'
 
 /**
  * Ask the chain whether the connected account may make a call, by simulating
@@ -35,24 +36,27 @@ export function useCanCall(params: {
   args.current = params.args
   const argsKey = JSON.stringify(params.args, (_key, value) => typeof value === 'bigint' ? value.toString() : value)
   const [allowed, setAllowed] = useState<boolean>()
+  const [reason, setReason] = useState('')
   const [checking, setChecking] = useState(false)
 
   useEffect(() => {
-    if (!enabled || !address || !account) { setAllowed(undefined); return }
+    if (!enabled || !address || !account) { setAllowed(undefined); setReason(''); return }
     let cancelled = false
     setChecking(true)
     publicClient
       .simulateContract({ address, abi, functionName, args: args.current, account } as never)
-      .then(() => { if (!cancelled) setAllowed(true) })
+      .then(() => { if (!cancelled) { setAllowed(true); setReason('') } })
       .catch((error: unknown) => {
         if (cancelled) return
         // A revert answers the question; a transport failure does not.
         const name = (error as { name?: string })?.name ?? ''
-        setAllowed(name === 'ContractFunctionExecutionError' || name === 'ContractFunctionRevertedError' ? false : undefined)
+        const reverted = name === 'ContractFunctionExecutionError' || name === 'ContractFunctionRevertedError'
+        setAllowed(reverted ? false : undefined)
+        setReason(reverted ? errorMessage(error).split('\n')[0] : '')
       })
       .finally(() => { if (!cancelled) setChecking(false) })
     return () => { cancelled = true }
   }, [address, abi, functionName, argsKey, account, enabled])
 
-  return { allowed, checking }
+  return { allowed, checking, reason }
 }

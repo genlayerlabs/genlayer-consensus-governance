@@ -64,6 +64,21 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
    a member checking who approved is comparing against a roster, and the row
    has the width to spare. */
 .approver-list code { font-size: 11px; letter-spacing: -.01em; }
+/* Actions are cards, not table rows. Each carries a heading, an approver
+   list and its own buttons, so as flat rows the eye could not tell where one
+   action ended and the next began — the approvals of one read as the
+   approvals of the other. */
+.action-log { display: grid; gap: 12px; }
+.action-card { border: 1px solid var(--line); border-radius: 12px; background: #0d1413; padding: 16px; }
+.action-card header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; }
+.action-card header b { font-size: 13px; }
+.action-target { color: var(--muted); flex: 1 1 220px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-tally { color: var(--muted); }
+.action-meta { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
+.action-meta a { display: inline-flex; align-items: center; gap: 4px; color: var(--green); }
+.action-card .approver-list { margin-top: 12px; }
+.action-card .role-note { margin-top: 12px; font-size: 11px; }
+.action-card .action-buttons { margin-top: 12px; }
 /* The directory address is the fastest way to fill "Delegate to" — typing a
    40-hex address by hand is where a delegation goes to the wrong account.
    Clicking it fills the field; the profile keeps its own link in the row so

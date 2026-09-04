@@ -9,7 +9,8 @@ import { useWallet } from '@/config/WalletContext'
 import { useCouncil } from '@/hooks/useCouncil'
 import { useCouncilActions } from '@/hooks/useCouncilActions'
 import { useProposals } from '@/hooks/useProposals'
-import type { ProposalSummary } from '@/lib/types'
+import { useCanCall } from '@/hooks/useCanCall'
+import type { CouncilAction, CouncilThresholds, ProposalSummary } from '@/lib/types'
 import {
   ACTION_PROPOSAL_STATES, ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES,
   SEAT_STATUS_NAMES, actionProposalId, actionProposalRequirement, actionThreshold, describeActionData,
@@ -142,6 +143,64 @@ function ActionComposer({ council, isMember, onDone, proposals, proposalsLoading
   )
 }
 
+function ActionRow({ action, council, isMember, thresholds, proposals, now, onDone }: {
+  action: CouncilAction; council?: `0x${string}`; isMember: boolean
+  thresholds: CouncilThresholds; proposals: ProposalSummary[]; now: bigint; onDone: () => void
+}) {
+  const { address } = useWallet()
+  const required = actionThreshold(action.actionType, thresholds, freezeKindOf(action.actionType, action.actionData))
+  const expired = action.expiresAt <= now && !action.executed
+  const ready = action.status === 2 && !action.executed && !expired
+  // executeAction is permissionless, so a simulation answers the only question
+  // that matters: would it work NOW. An approved action can still be dead —
+  // DesignateSpam needs the proposal Pending, and voting opening while the
+  // council was collecting signatures kills it with no event to say so.
+  const { allowed: canExecute, reason } = useCanCall({
+    address: council, abi: SecurityCouncilABI as never, functionName: 'executeAction',
+    args: [action.actionId], account: address, enabled: ready,
+  })
+  const tone = action.executed ? 1 : expired || canExecute === false ? 0 : 2
+
+  return <article className="action-card">
+    <header>
+      <span className={`vote-dot support-${tone}`} />
+      <b>{ACTION_TYPE_NAMES[action.actionType] ?? `Type ${action.actionType}`}</b>
+      <span className="action-target">{targetTitle(action.actionType, action.actionData, proposals)}</span>
+      <span className={`seat-status support-${tone}`}>
+        {action.executed ? 'Executed' : expired ? 'Expired' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
+      <span className="action-tally">{action.approvals} / {required} approvals</span>
+    </header>
+    <p className="action-meta">By {shortAddress(action.creator)} · {expired ? 'Lapsed' : 'Expires'} {formatDate(action.expiresAt)}
+      {action.transactionHash && <> · <a href={explorerTx(action.transactionHash)} target="_blank" rel="noreferrer">
+        View on explorer <ExternalLink size={11} /></a></>}</p>
+
+    {action.approvers.length > 0 && <div className="approver-list">
+      {action.approvers.map((approval, index) => <span key={`${approval.address}-${approval.transactionHash}`}>
+        <b>{index + 1}.</b>
+        <a href={explorerAddress(approval.address)} target="_blank" rel="noreferrer"><code>{approval.address}</code></a>
+        <em>{approval.at === undefined ? 'time unavailable' : formatDate(approval.at)}</em>
+      </span>)}
+    </div>}
+
+    {ready && canExecute === false && <div className="role-note"><AlertTriangle size={16} /><p>
+      <b>Approved, but it can no longer execute</b>
+      {reason || 'Executing it now reverts.'} Nothing on-chain marks this, so the action keeps reporting Approved
+      until it expires.</p></div>}
+
+    {!action.executed && !expired && <div className="action-buttons">
+      <TransactionButton
+        address={council} abi={SecurityCouncilABI as never}
+        functionName="approveAction" args={[action.actionId]} variant="secondary"
+        disabled={!isMember} onConfirmed={onDone}
+      >Approve</TransactionButton>
+      {ready && canExecute !== false && <TransactionButton
+        address={council} abi={SecurityCouncilABI as never}
+        functionName="executeAction" args={[action.actionId]} onConfirmed={onDone}
+      >Execute</TransactionButton>}
+    </div>}
+  </article>
+}
+
 export function CouncilPage() {
   const { currentSet } = useContracts()
   const { address } = useWallet()
@@ -231,41 +290,10 @@ export function CouncilPage() {
           <span>{actions.actions.length} found</span></div>
         {actions.progress && <p className="scan-progress">{actions.progress}</p>}
         {actions.error && <div className="error-box">{actions.error}</div>}
-        <div className="voter-list">{actions.actions.map((action) => {
-          const required = actionThreshold(action.actionType, overview.thresholds, freezeKindOf(action.actionType, action.actionData))
-          const expired = action.expiresAt <= now && !action.executed
-          const ready = action.status === 2 && !action.executed && !expired
-          return <article key={action.actionId}>
-            <span className={`vote-dot support-${action.executed ? 1 : expired ? 0 : 2}`} />
-            <b>{ACTION_TYPE_NAMES[action.actionType] ?? `Type ${action.actionType}`}</b>
-            <span>{targetTitle(action.actionType, action.actionData, proposals)}</span>
-            <span>{action.approvals} / {required} approvals</span>
-            <span className={`seat-status support-${action.executed ? 1 : expired ? 0 : 2}`}>
-              {action.executed ? 'Executed' : expired ? 'Expired' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
-            <p>By {shortAddress(action.creator)} · {expired ? 'Lapsed' : 'Expires'} {formatDate(action.expiresAt)}</p>
-            {action.approvers.length > 0 && <div className="approver-list">
-              {action.approvers.map((approval, index) => <span key={`${approval.address}-${approval.transactionHash}`}>
-                <b>{index + 1}.</b>
-                <a href={explorerAddress(approval.address)} target="_blank" rel="noreferrer"><code>{approval.address}</code></a>
-                <em>{approval.at === undefined ? 'time unavailable' : formatDate(approval.at)}</em>
-              </span>)}
-            </div>}
-            {!action.executed && !expired && <div className="action-buttons">
-              <TransactionButton
-                address={currentSet.council} abi={SecurityCouncilABI as never}
-                functionName="approveAction" args={[action.actionId]} variant="secondary"
-                disabled={!isMember} onConfirmed={() => void actions.refresh()}
-              >Approve</TransactionButton>
-              {ready && <TransactionButton
-                address={currentSet.council} abi={SecurityCouncilABI as never}
-                functionName="executeAction" args={[action.actionId]}
-                onConfirmed={() => { void actions.refresh(); void refresh() }}
-              >Execute</TransactionButton>}
-            </div>}
-            {action.transactionHash && <a className="tx-link" href={explorerTx(action.transactionHash)} target="_blank" rel="noreferrer">
-              View on explorer <ExternalLink size={12} /></a>}
-          </article>
-        })}
+        <div className="action-log">{actions.actions.map((action) => <ActionRow
+          key={action.actionId} action={action} council={currentSet.council} isMember={isMember}
+          thresholds={overview.thresholds} proposals={proposals} now={now}
+          onDone={() => { void actions.refresh(); void refresh() }} />)}
         {!actions.loading && actions.actions.length === 0 && <div className="empty inline">
           <p>No council actions found. The contract exposes no action enumeration, so this list is built from
           <code>CouncilActionCreated</code> logs within the scanned range.</p></div>}
