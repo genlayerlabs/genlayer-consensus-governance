@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Address } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import GovernanceGESRegistryABI from '@/abi/GovernanceGESRegistry.json'
-import GovernanceClockABI from '@/abi/GovernanceClock.json'
 import GovernanceVotingPowerABI from '@/abi/GovernanceVotingPower.json'
 import GovernanceClassRegistryABI from '@/abi/GovernanceClassRegistry.json'
 import { deploymentConfig } from '@/config/chain'
@@ -40,7 +39,9 @@ export async function fetchProposal(voting: Address, id: bigint, account?: Addre
   const core = normalizeCore(coreValue)
   const setValue = await publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'contractSet', args: [core.contractsHash] } as any)
   const set = normalizeSet(setValue)
-  const clock = await publicClient.readContract({ address: set.clock, abi: GovernanceClockABI, functionName: 'clock' } as any) as bigint
+  // clock() is on GovernanceVotingPower, not GovernanceClock — see the note
+  // in useAccountSummary. Reading it from set.clock reverts.
+  const clock = await publicClient.readContract({ address: set.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint
   const effectiveSnapshot = (voteStart as bigint) >= clock ? clock - 1n : voteStart as bigint
   const ges = await publicClient.readContract({ address: set.gesRegistry, abi: GovernanceGESRegistryABI, functionName: 'getPastGES', args: [effectiveSnapshot] } as any) as bigint
   const operationPermissions = await Promise.all((operations as any[]).map((operation) => publicClient.readContract({ address: set.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'isPermittedFor', args: [core.classId, operation, id] } as any) as Promise<boolean>))
