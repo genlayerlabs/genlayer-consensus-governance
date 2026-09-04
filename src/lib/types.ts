@@ -214,3 +214,35 @@ export interface DelegationSummary {
   /** per-validator positions, each measured against MIN_ENTRY_VALUE */
   positions: { validator: Address; shares: bigint; pending: bigint; value: bigint; meetsFloor: boolean }[]
 }
+
+// ── Council elections (CON-862) ─────────────────────────────────────────────
+
+export interface ElectionCandidate {
+  address: Address
+  /** ballot weight accumulated; 0 until Voting */
+  weight: bigint
+  /** true when the candidate made the sealed slate */
+  slated: boolean
+  withdrawn: boolean
+  bond: bigint
+}
+
+export interface ElectionSummary {
+  id: bigint
+  state: number
+  /** from ElectionStarted; state() alone cannot tell you the kind */
+  kind?: number
+  seatsAtStake?: number
+  /** wall-clock PROJECTIONS made at start — a clock freeze shifts the real instants */
+  voteStart?: bigint
+  voteEnd?: bigint
+  slate: Address[]
+  winners: Address[]
+  alternates: Address[]
+  ranking: Address[]
+  /** only known after the fact, from ElectionSettled / ElectionFailed */
+  turnout?: bigint
+  quorum?: bigint
+  transactionHash?: Hex
+  blockNumber?: bigint
+}
