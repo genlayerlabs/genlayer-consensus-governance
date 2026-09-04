@@ -73,7 +73,7 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 .page { width: min(980px, calc(100% - 40px)); margin: 0 auto; padding: 54px 0 80px; }
 .page.wide { width: min(1320px, calc(100% - 48px)); }
 .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-bottom: 34px; }
-.hero h1, .proposal-header h1 { margin: 4px 0 8px; font-size: clamp(36px, 5vw, 58px); line-height: 1.02; letter-spacing: -.045em; }
+.hero h1, .proposal-header h1 { margin: 4px 0 8px; font-size: clamp(28px, 3vw, 38px); line-height: 1.08; letter-spacing: -.035em; }
 .hero p:not(.eyebrow), .proposal-header > p { margin: 0; color: var(--muted); font-size: 16px; }
 .eyebrow { color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; margin: 0 0 7px; }
 .muted, .hint { color: var(--muted); }
@@ -288,7 +288,7 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
   .account-summary { padding: 9px 16px; gap: 24px; }
   .page, .page.wide { width: min(100% - 24px, 1320px); padding-top: 34px; }
   .hero { align-items: flex-start; flex-direction: column; }
-  .hero h1 { font-size: 40px; }
+  .hero h1 { font-size: 30px; }
   .filters { display: flex; overflow-x: auto; padding-bottom: 6px; }
   .filters .search { min-width: 280px; }
   .proposal-card { padding: 17px; }
