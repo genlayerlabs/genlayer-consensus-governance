@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Address } from 'viem'
 import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json'
-import { deploymentConfig } from '@/config/chain'
+import { contractCreationBlock } from '@/lib/deploymentBlock'
 import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { cacheableHead, readCache, writeCache } from '@/lib/logCache'
@@ -55,7 +55,7 @@ export function useElections() {
       for (const entry of cached?.records ?? []) starts.set(entry.id, entry)
 
       const head = await publicClient.getBlockNumber()
-      const from = cached && cached.toBlock > 0n ? cached.toBlock + 1n : deploymentConfig.deploymentStartBlock
+      const from = cached && cached.toBlock > 0n ? cached.toBlock + 1n : await contractCreationBlock(address)
       if (from <= head) {
         const logs = await scanLogs({
           address, abi: GovernanceCouncilElectionsABI as never, eventName: 'ElectionStarted' as never,
@@ -125,7 +125,9 @@ export function useElectionCandidates(electionId?: bigint, fromBlock?: bigint) {
     if (!address || electionId === undefined) { setCandidates([]); return }
     setLoading(true); setError(undefined)
     try {
-      const floor = fromBlock ?? deploymentConfig.deploymentStartBlock
+      // The candidate scan has the same problem as the election list: without
+      // the election's start block it would walk from genesis.
+      const floor = fromBlock ?? await contractCreationBlock(address)
       const [nominated, withdrawn, slate] = await Promise.all([
         scanLogs({ address, abi: GovernanceCouncilElectionsABI as never, eventName: 'CandidateNominated' as never, args: { electionId }, fromBlock: floor }),
         scanLogs({ address, abi: GovernanceCouncilElectionsABI as never, eventName: 'CandidateWithdrawn' as never, args: { electionId }, fromBlock: floor }),

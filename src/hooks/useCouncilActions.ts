@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Address, Hex } from 'viem'
 import SecurityCouncilABI from '@/abi/SecurityCouncil.json'
-import { deploymentConfig } from '@/config/chain'
+import { contractCreationBlock } from '@/lib/deploymentBlock'
 import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
@@ -74,7 +74,10 @@ export function useCouncilActions() {
       for (const entry of cached?.records ?? []) known.set(entry.actionId.toLowerCase(), entry)
 
       const head = await publicClient.getBlockNumber()
-      const from = cached && cached.toBlock > 0n ? cached.toBlock + 1n : deploymentConfig.deploymentStartBlock
+      // The council cannot have emitted anything before it existed, so its
+      // creation block is an exact floor — ~25 eth_getCode calls once, against
+      // ~2,060 capped getLogs requests on every cold visit.
+      const from = cached && cached.toBlock > 0n ? cached.toBlock + 1n : await contractCreationBlock(council)
       indexedTo.current = cached?.toBlock
 
       if (from <= head) {
