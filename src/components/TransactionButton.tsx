@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, LoaderCircle } from 'lucide-react'
 import type { Abi, Address } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
@@ -21,11 +21,17 @@ export function TransactionButton({ address, abi, functionName, args, value, chi
   disabled?: boolean
   onConfirmed?: () => void | Promise<void>
 }) {
-  const { isConnected, writeContract } = useWallet()
+  const { address: account, isConnected, writeContract } = useWallet()
   const [pending, setPending] = useState(false)
   const [hash, setHash] = useState<`0x${string}`>()
   const [error, setError] = useState('')
   const [retrying, setRetrying] = useState(0)
+
+  // "Confirmed" is a fact about the account that sent it. On a wallet switch
+  // it becomes a lie — the new account has not done this, and on a council
+  // action it is precisely the account whose turn it is to act. Clear the
+  // result so the button offers itself again.
+  useEffect(() => { setHash(undefined); setError(''); setRetrying(0) }, [account])
   const submit = async () => {
     if (!address) return
     setPending(true); setError(''); setHash(undefined); setRetrying(0)
