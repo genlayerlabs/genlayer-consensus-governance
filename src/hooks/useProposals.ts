@@ -9,6 +9,7 @@ import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { normalizeCore, normalizePostVote, normalizeRules, normalizeVotes, titleFromDescription } from '@/lib/governance'
+import { readCache, writeCache } from '@/lib/logCache'
 import { findLatestLogBackwards, scanLogs } from '@/lib/rpc'
 import type { ContractSet, ProposalSummary } from '@/lib/types'
 
@@ -24,11 +25,22 @@ function normalizeSet(value: any): ContractSet {
 
 export async function fetchProposal(voting: Address, id: bigint, account?: Address, creationLog?: any): Promise<ProposalSummary> {
   if (!creationLog) {
-    // Newest-first and best-effort: this only decorates the view with the
-    // creation tx/block, so it must not gate the render. A forward scan from
-    // deploymentStartBlock (genesis when VITE_DEPLOYMENT_START_BLOCK is unset)
-    // costs ~2,000 capped requests on a 20M-block chain before anything shows.
-    creationLog = await findLatestLogBackwards({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, args: { id }, floor: deploymentConfig.deploymentStartBlock })
+    // A proposal's creation log is immutable and one-per-id, so it is worth
+    // remembering permanently: the voters scan also resumes from this block,
+    // and without it that scan restarts at genesis.
+    const cachedCreation = readCache<any>('creation', voting, id.toString(), (raw) => ({ ...raw, blockNumber: BigInt(raw.blockNumber) }))
+    creationLog = cachedCreation?.records[0]
+    if (!creationLog) {
+      // Newest-first and best-effort: this only decorates the view with the
+      // creation tx/block, so it must not gate the render. A forward scan from
+      // deploymentStartBlock (genesis when VITE_DEPLOYMENT_START_BLOCK is unset)
+      // costs ~2,000 capped requests on a 20M-block chain before anything shows.
+      creationLog = await findLatestLogBackwards({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, args: { id }, floor: deploymentConfig.deploymentStartBlock })
+      if (creationLog) {
+        writeCache('creation', voting, id.toString(), { toBlock: creationLog.blockNumber as bigint, records: [{ blockNumber: creationLog.blockNumber, transactionHash: creationLog.transactionHash }] },
+          (record: any) => ({ blockNumber: record.blockNumber.toString(), transactionHash: record.transactionHash }))
+      }
+    }
   }
   const calls = [
     ['getProposal', [id]], ['state', [id]], ['proposalDescription', [id]],
