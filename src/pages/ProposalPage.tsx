@@ -16,6 +16,7 @@ import GovernanceL1BridgeABI from '@/abi/GovernanceL1Bridge.json'
 import ValidatorWalletABI from '@/abi/ValidatorWallet.json'
 import { useContracts } from '@/config/ContractsContext'
 import { InfoHint } from '@/components/InfoHint'
+import { useCanCall } from '@/hooks/useCanCall'
 import { useProposal } from '@/hooks/useProposal'
 import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
@@ -91,6 +92,12 @@ export function ProposalPage() {
   const { voting } = useContracts()
   const { isConnected, address } = useWallet()
   const { proposal, loading, error, refresh } = useProposal(id)
+  // Probe only while a review is actually open: outside state 6 the call
+  // reverts WrongState for everyone, which would read as "not the signer".
+  const { allowed: isGlfSigner } = useCanCall({
+    address: voting, abi: GovernanceVotingABI as never, functionName: 'approveRiskReview',
+    args: [id], account: address, enabled: proposal?.state === 6,
+  })
   const voters = useVoteRecords(voting, id, proposal?.blockNumber)
   const [support, setSupport] = useState(1)
   const [reason, setReason] = useState('')
@@ -223,13 +230,27 @@ export function ProposalPage() {
           </TransactionButton>
         </div>}
         {proposal.state === 6 && <div className="glf-actions">
-          <div className="role-note"><ShieldAlert size={18} /><p><b>Risk Review</b>
-            Either the GLF signer or the Security Council may approve. The GLF signs alone but sets the ETA a full
-            review window out; the council needs its standard threshold yet executes sooner. Council approval is
-            raised as an action on the <Link to="/council">Security Council</Link> page.</p></div>
-          <TransactionButton address={voting} functionName="approveRiskReview" args={[id]} onConfirmed={refresh}>
-            <Check size={16} /> Approve Risk Review
-          </TransactionButton>
+          {/* The GLF signer is unreadable — setGLFVetoSigner writes a private
+              slot and emits nothing — so the account is probed by simulating
+              the call. Allowed: give the signer the button and nothing else,
+              since the council route is not theirs to take. Refused: no
+              button, and say where approval has to come from instead.
+              Unknown (wallet away, node unreachable) keeps both, because an
+              RPC failure must never look like a denial. */}
+          {isGlfSigner === true
+            ? <TransactionButton address={voting} functionName="approveRiskReview" args={[id]} onConfirmed={refresh}>
+              <Check size={16} /> Approve Risk Review
+            </TransactionButton>
+            : <>
+              <div className="role-note"><ShieldAlert size={18} /><p><b>Risk Review</b>
+                Either the GLF signer or the Security Council may approve. The GLF signs alone but sets the ETA a full
+                review window out; the council needs its standard threshold yet executes sooner. Council approval is
+                raised as an action on the <Link to="/council">Security Council</Link> page.
+                {isGlfSigner === false && ' This account is not the GLF signer, so its approval must come from the council.'}</p></div>
+              {isGlfSigner === undefined && <TransactionButton address={voting} functionName="approveRiskReview" args={[id]} onConfirmed={refresh}>
+                <Check size={16} /> Approve Risk Review
+              </TransactionButton>}
+            </>}
         </div>}
         <div className="proposal-settings"><span><small>Class timelock</small>{formatDuration(proposal.core.classTimelock)}</span><span><small>Retry allowed</small>{proposal.core.retryAllowed ? 'Yes' : 'No'}</span><span><small>Risk Review</small>{proposal.rules.requiresRiskReview ? 'Required' : 'Not required'}</span><span><small>Late quorum window</small>{formatDuration(proposal.rules.lateQuorumWindow)}</span></div>
       </section>
