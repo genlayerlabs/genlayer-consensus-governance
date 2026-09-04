@@ -17,7 +17,8 @@ interface WalletState {
   switching: boolean
   error?: string
   connect: () => Promise<void>
-  disconnect: () => void
+  disconnect: () => void | Promise<void>
+  switchAccount: () => Promise<void>
   switchChain: () => Promise<void>
   writeContract: (request: { address: Address; abi: Abi | readonly unknown[]; functionName: string; args: readonly unknown[]; value?: bigint }) => Promise<Hex>
 }
@@ -63,7 +64,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     finally { setConnecting(false) }
   }
 
-  const disconnect = () => { setAddress(undefined); setError(undefined) }
+  /**
+   * Re-open the wallet's account picker.
+   *
+   * `eth_requestAccounts` resolves silently with the already-permitted
+   * account, so "Connect wallet" could never reach a DIFFERENT one — the
+   * only escape was editing site permissions by hand. `wallet_requestPermissions`
+   * re-prompts, which is the account-switch affordance.
+   */
+  const switchAccount = async () => {
+    const current = injected()
+    if (!current) { setError('No injected EIP-1193 wallet was found. Install or enable a browser wallet.'); return }
+    setConnecting(true); setError(undefined)
+    try {
+      await current.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] })
+      await sync()
+    } catch (error: any) {
+      // 4001 is the user closing the picker — not a failure worth reporting.
+      if (error?.code !== 4001) setError(error instanceof Error ? error.message : String(error))
+    } finally { setConnecting(false) }
+  }
+
+  const disconnect = async () => {
+    // Clearing local state alone leaves the site permitted, so the next
+    // connect silently reattaches the same account. Revoke where supported
+    // (best-effort: not every wallet implements wallet_revokePermissions).
+    const current = injected()
+    try { await current?.request({ method: 'wallet_revokePermissions', params: [{ eth_accounts: {} }] }) } catch { /* unsupported */ }
+    setAddress(undefined); setError(undefined)
+  }
 
   const switchChain = async () => {
     const current = injected()
@@ -89,7 +118,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     return walletClient.writeContract({ ...request, abi: request.abi as Abi } as any)
   }
 
-  const value = { address, chainId, isConnected: !!address, isAvailable: !!provider, connecting, switching, error, connect, disconnect, switchChain, writeContract }
+  const value = { address, chainId, isConnected: !!address, isAvailable: !!provider, connecting, switching, error, connect, disconnect, switchAccount, switchChain, writeContract }
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
 }
 
