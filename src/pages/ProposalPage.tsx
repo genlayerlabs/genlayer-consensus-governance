@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
+import remarkGfm from 'remark-gfm'
 import { ArrowLeft, Check, Circle, ExternalLink, RefreshCw, ShieldAlert, Vote } from 'lucide-react'
 import { useWallet } from '@/config/WalletContext'
 import { decodeAbiParameters, toFunctionSelector } from 'viem'
@@ -14,6 +15,7 @@ import GovernanceABI from '@/abi/Governance.json'
 import GovernanceL1BridgeABI from '@/abi/GovernanceL1Bridge.json'
 import ValidatorWalletABI from '@/abi/ValidatorWallet.json'
 import { useContracts } from '@/config/ContractsContext'
+import { InfoHint } from '@/components/InfoHint'
 import { useProposal } from '@/hooks/useProposal'
 import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
@@ -108,7 +110,7 @@ export function ProposalPage() {
     <header className="proposal-header">
       <div className="badges"><StatusBadge state={proposal.state} /><span className="pill">{CLASS_NAMES[proposal.core.classId] ?? `Class ${proposal.core.classId}`}</span><span className="pill">{proposal.operations.length ? `${proposal.operations.length} operation${proposal.operations.length === 1 ? '' : 's'}` : 'RFC · no payload'}</span></div>
       <h1>{proposal.title}</h1>
-      <p>GLIP #{id.toString()} by <a href={explorerAddress(proposal.core.proposer)} target="_blank" rel="noreferrer">{shortAddress(proposal.core.proposer)} <ExternalLink size={13} /></a></p>
+      <p>GLIP<InfoHint text="GenLayer Improvement Proposal — the on-chain proposal object itself, stored in full on L2. A GLIP with an empty payload is an RFC: it signals approval of the text without executing anything." /> #{id.toString()} by <a href={explorerAddress(proposal.core.proposer)} target="_blank" rel="noreferrer">{shortAddress(proposal.core.proposer)} <ExternalLink size={13} /></a></p>
       <div className="header-facts"><span><small>Created</small>{formatDate(proposal.core.creationTime)}</span><span><small>Snapshot</small>{formatDate(proposal.voteStart)}</span><span><small>Vote deadline</small>{formatDate(proposal.voteEnd)}</span><span><small>Next action</small>{proposalNextAction(proposal.state, proposal.core.retryAllowed)}</span>{proposal.transactionHash && <span><small>Creation transaction</small><a className="tx-link" href={explorerTx(proposal.transactionHash)} target="_blank" rel="noreferrer">View on explorer <ExternalLink size={12} /></a></span>}</div>
     </header>
 
@@ -122,7 +124,7 @@ export function ProposalPage() {
         </div>
       </section>
 
-      <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain description</p><h2>Proposal text</h2></div><span className={descriptionVerified ? 'verified' : 'unverified'}>{descriptionVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div><div className="markdown"><ReactMarkdown rehypePlugins={[rehypeSanitize]}>{proposal.description}</ReactMarkdown></div><details><summary>Raw text and hash</summary><pre className="raw-text">{proposal.description}</pre><code className="hash">{proposal.core.descriptionHash}</code></details></section>
+      <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain description</p><h2>Proposal text</h2></div><span className={descriptionVerified ? 'verified' : 'unverified'}>{descriptionVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div><div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{proposal.description}</ReactMarkdown></div><details><summary>Raw text and hash</summary><pre className="raw-text">{proposal.description}</pre><code className="hash">{proposal.core.descriptionHash}</code></details></section>
 
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">Execution payload</p><h2>{proposal.operations.length ? 'Ordered operations' : 'Signalling RFC'}</h2></div><span className={payloadVerified ? 'verified' : 'unverified'}>{payloadVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div>
         {proposal.operations.length === 0 ? <div className="empty inline"><p>This proposal has no executable operations. Its zero payload hash identifies it as an RFC.</p></div> : <div className="operations">{proposal.operations.map((operation, index) => { const decoded = decodeKnownOperation(operation, proposal.contractSet); return <article className="operation" key={`${operation.target}-${index}`}><span className="operation-index">{index + 1}</span><div><p><b>{decoded?.contract ?? shortAddress(operation.target)}</b> · <span className={proposal.operationPermissions[index] ? 'success-text' : 'danger-text'}>{proposal.operationPermissions[index] ? 'Permitted for class' : 'Not currently permitted'}</span></p><a href={explorerAddress(operation.target)} target="_blank" rel="noreferrer">{operation.target}</a><dl>{decoded && <><div><dt>Decoded call</dt><dd><code>{decoded.signature}</code></dd></div>{decoded.args && <div><dt>Decoded arguments</dt><dd><pre>{decoded.args}</pre></dd></div>}</>}<div><dt>Selector</dt><dd><code>{operation.selector}</code></dd></div><div><dt>Native value</dt><dd>{formatGen(operation.value)} GEN</dd></div><div><dt>Raw arguments</dt><dd><code>{operation.args}</code></dd></div><div><dt>Calldata</dt><dd><code>{operation.selector}{operation.args.slice(2)}</code></dd></div></dl></div></article> })}</div>}
