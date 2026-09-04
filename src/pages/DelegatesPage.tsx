@@ -17,6 +17,8 @@ const HINTS = {
     'A delegation change only affects proposals and elections whose snapshot happens later. Anything already open keeps the weights it fixed when its voting opened — changing your delegate now cannot move a live vote.',
   floor:
     'A new third-party delegation is admitted per validator position, not on your total. Each position that would open an entry on the delegate must independently clear the floor, so several small positions cannot be combined to reach it.',
+  positions:
+    'One position is your stake with one validator — liveValidatorsOf returns the validators you hold stake with, and each is counted separately. It matters because the third-party delegation floor is checked per position rather than on your total.',
   park:
     'Delegating to the zero address parks your power: it stops counting for anyone, including you. It is reversible at any time by delegating again.',
   notSupported:
@@ -49,7 +51,7 @@ function MyDelegation({ onChanged }: { onChanged: () => void }) {
     <div className="header-facts">
       <span><small>Voting power</small>{formatGen(summary.votingPower)} GEN</span>
       <span><small>Current delegate</small>{summary.parked ? 'None (parked)' : shortAddress(summary.delegate)}</span>
-      <span><small>Positions</small>{summary.positions.length}</span>
+      <span><small>Positions<InfoHint text={HINTS.positions} /></small>{summary.positions.length}</span>
       {summary.excluded && <span className="danger-text"><small>Excluded</small>Cannot delegate</span>}
       {summary.cooldownUntil > now && <span className="danger-text"><small>Cooldown until</small>{formatDate(summary.cooldownUntil)}</span>}
     </div>
