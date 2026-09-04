@@ -171,7 +171,8 @@ export function CouncilPage() {
             <span className={`vote-dot support-${member.status === 1 ? 1 : member.status === 2 ? 2 : 0}`} />
             {vacant ? <b>Vacant</b> : <a href={explorerAddress(member.address)} target="_blank" rel="noreferrer">{shortAddress(member.address)}</a>}
             <b>Seat {member.seat} · Cohort {COHORT_NAMES[member.cohortId] ?? member.cohortId}</b>
-            <span>{SEAT_STATUS_NAMES[member.status] ?? `Status ${member.status}`}
+            <span className={`seat-status support-${member.status === 1 ? 1 : member.status === 2 ? 2 : 0}`}>
+              {SEAT_STATUS_NAMES[member.status] ?? `Status ${member.status}`}
               {member.status === 2 && <InfoHint text={HINTS.holdOver} />}</span>
             <span>{member.termEnd === 0 ? 'Genesis seat' : `Term ends ${formatDate(member.termEnd)}`}</span>
             <p>{member.electionId === 0n ? 'Appointed at genesis' : `Elected in election #${member.electionId}`}</p>
