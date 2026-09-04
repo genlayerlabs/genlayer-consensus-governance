@@ -216,10 +216,13 @@ describe('governance helpers', () => {
     expect(electionCranks(1).map((crank) => crank.fn)).toEqual(['startEndorsement'])
     expect(electionCranks(2).map((crank) => crank.fn)).toEqual(['sealSlate'])
     expect(electionCranks(3).map((crank) => crank.fn)).toEqual(['castBallot'])
-    // Succeeded is transient and Failed still needs recording: both settle
+    // Succeeded is transient, so it settles
     expect(electionCranks(4).map((crank) => crank.fn)).toEqual(['settleElection'])
-    expect(electionCranks(5).map((crank) => crank.fn)).toEqual(['settleElection'])
-    // Scheduled and Settled have nothing to advance
+    // Failed is NOT: computeState returns it only once election.failed is set,
+    // which settle is what sets. Offering Settle there put a button on screen
+    // that reverts WrongPhase.
+    expect(electionCranks(5)).toEqual([])
+    // Scheduled and Settled have nothing to advance either
     expect(electionCranks(0)).toEqual([])
     expect(electionCranks(6)).toEqual([])
   })

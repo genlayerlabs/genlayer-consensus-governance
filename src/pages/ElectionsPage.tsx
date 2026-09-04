@@ -6,6 +6,8 @@ import { Button } from '@/components/Button'
 import { InfoHint } from '@/components/InfoHint'
 import { TransactionButton } from '@/components/TransactionButton'
 import { useContracts } from '@/config/ContractsContext'
+import { useWallet } from '@/config/WalletContext'
+import { useCanCall } from '@/hooks/useCanCall'
 import { useElectionCandidates, useElections } from '@/hooks/useElections'
 import {
   ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction,
@@ -28,12 +30,21 @@ const HINTS = {
 function ElectionCard({ election, elections, onChanged }: { election: ElectionSummary; elections?: Address; onChanged: () => void }) {
   // Open by default: the slate, candidates and ballot are the page — hiding
   // them behind a click made an election look like a one-line stub.
+  const { address } = useWallet()
   const [open, setOpen] = useState(true)
   const [picks, setPicks] = useState('')
   const candidates = useElectionCandidates(open ? election.id : undefined, election.blockNumber)
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
   const cranks = electionCranks(election.state)
+  // claimBond reverts NothingToClaim for anyone who did not nominate, which is
+  // almost everyone looking at the page. Simulating it is the only way to know:
+  // the claimable set is not readable, and it opens as soon as a slate is
+  // sealed without you on it, not only after settlement.
+  const { allowed: canClaim } = useCanCall({
+    address: elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'claimBond',
+    args: [election.id], account: address, enabled: open && election.state >= 2,
+  })
 
   return <article className="panel election-card">
     <div className="section-heading"><div>
@@ -95,11 +106,13 @@ function ElectionCard({ election, elections, onChanged }: { election: ElectionSu
         </TransactionButton>)}
         {/* Claimable the moment the slate is sealed without you on it, not
             only after settlement — so it stands apart from the phase crank. */}
-        {election.state >= 2 && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never}
+        {canClaim && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never}
           functionName="claimBond" args={[election.id]} variant="ghost"
           onConfirmed={() => void candidates.refresh()}>Claim bond</TransactionButton>}
-        {cranks.length === 0 && election.state < 2 && <p className="hint">
-          Nothing to crank in this phase — registration is open and needs no transaction.</p>}
+        {cranks.length === 0 && !canClaim && <p className="hint">
+          {election.state < 2
+            ? 'Nothing to crank in this phase — registration is open and needs no transaction.'
+            : 'Nothing left to do here: this election is recorded, and this account has no bond to claim.'}</p>}
       </div>
     </>}
   </article>
