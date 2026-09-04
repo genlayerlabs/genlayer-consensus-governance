@@ -53,14 +53,19 @@ function Rule({ title, current, required, met, detail }: { title: string; curren
 }
 
 function Lifecycle({ state, voteStart, voteEnd, eta, deadline, requiresRiskReview, hasL1, rules, postVote }: { state: number; voteStart: bigint; voteEnd: bigint; eta: bigint; deadline: bigint; requiresRiskReview: boolean; hasL1: boolean; rules: ProposalSummary['rules']; postVote: ProposalSummary['postVote'] }) {
+  // vetoClose = voteEnd + the window in force; the two-member extension
+  // (§5.5 rule 1) swaps in extendedVetoWindow, so read the flag rather than
+  // assuming. Both later deadlines hang off this instant.
+  const vetoClose = voteEnd + BigInt(postVote.vetoExtended ? rules.extendedVetoWindow : rules.vetoWindow)
   const steps = [
     { label: 'Created & preparation', when: `Voting opens ${formatDate(voteStart)}`, done: state > 0, current: state === 0 },
     { label: 'Active voting', when: `Deadline ${formatDate(voteEnd)}`, done: state > 1, current: state === 1 },
     { label: 'Vote outcome', when: state === 2 ? 'Defeated — see passage rules' : 'Succeeded after settlement', done: state >= 3 && state !== 13, current: state === 2 || state === 3 || state === 13 },
-    // vetoClose = voteEnd + the window in force; the extension (§5.5 rule 1)
-    // swaps in extendedVetoWindow, so read the flag rather than assuming.
-    { label: 'GLF veto window', when: `Closes ${formatDate(voteEnd + BigInt(postVote.vetoExtended ? rules.extendedVetoWindow : rules.vetoWindow))}${postVote.vetoExtended ? ' (extended)' : ''}`, done: state > 4 && state !== 5, current: state === 4 || state === 5 },
-    ...(requiresRiskReview ? [{ label: 'Risk Review', when: 'Security Council and GLF approval state', done: state > 6 && state !== 5, current: state === 6 }] : []),
+    { label: 'GLF veto window', when: `Closes ${formatDate(vetoClose)}${postVote.vetoExtended ? ' (extended)' : ''}`, done: state > 4 && state !== 5, current: state === 4 || state === 5 },
+    // Risk Review is not open-ended: _postVoteState expires the proposal at
+    // anchor + reviewWindow if neither body has approved, so the deadline
+    // belongs on the step that is waiting for a human.
+    ...(requiresRiskReview ? [{ label: 'Risk Review', when: `Approve before ${formatDate(vetoClose + BigInt(rules.reviewWindow))} or the proposal expires`, done: state > 6 && state !== 5, current: state === 6 }] : []),
     { label: 'Class timelock', when: eta ? `Execution ETA ${formatDate(eta)}` : 'ETA is set during settlement', done: state > 7 && state !== 11, current: state === 7 },
     { label: 'Execution window', when: deadline ? `Expires ${formatDate(deadline)}` : 'Permissionless after timelock', done: state === 9, current: state === 8 || state === 10 || state === 11 },
     ...(hasL1 ? [{ label: 'L2 → L1 execution leg', when: 'Bridge message, L1 timelock, execution, cancellation, and expiry are verified from the deployed bridge', done: state === 9, current: state === 8 || state === 10 }] : []),
