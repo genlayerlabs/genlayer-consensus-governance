@@ -37,6 +37,16 @@ export const ACTION_PROPOSAL_STATES: Record<number, number[]> = {
   3: [6, 7], // RiskReview  -> Risk Review or Timelock
 }
 
+/** Shorten a label to fit a fixed-width control, ellipsis included in the
+ *  budget so the result never exceeds `max`. A <select> is sized by its widest
+ *  option — CSS can clip the closed control but the option text is what sets
+ *  the intrinsic width, so a long proposal title has to be cut, not styled. */
+export function truncate(text: string, max: number): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= max) return trimmed
+  return `${trimmed.slice(0, max - 1).trimEnd()}…`
+}
+
 export function actionProposalRequirement(actionType: number): string {
   const states = ACTION_PROPOSAL_STATES[actionType]
   if (!states) return ''

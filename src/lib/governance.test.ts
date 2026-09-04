@@ -1,7 +1,7 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
-  ACTION_PROPOSAL_STATES, actionProposalRequirement } from './governance'
+  ACTION_PROPOSAL_STATES, actionProposalRequirement, truncate } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -155,5 +155,18 @@ describe('governance helpers', () => {
     expect(actionProposalRequirement(1)).toBe('Active')
     expect(actionProposalRequirement(3)).toBe('Risk Review or Timelock')
     expect(actionProposalRequirement(6)).toBe('')
+  })
+
+  it('keeps a truncated label inside its budget, ellipsis included', () => {
+    // The ellipsis is part of the allowance, not added on top of it — a
+    // <select> is sized by its widest option, so an over-budget result would
+    // still push the panel past its column.
+    const title = 'Grant the quarantine manager role to the governance operations account'
+    expect(truncate(title, 48)).toHaveLength(48)
+    expect(truncate(title, 48).endsWith('…')).toBe(true)
+    // exactly at the limit is left alone, and no space is stranded before the ellipsis
+    expect(truncate('12345', 5)).toBe('12345')
+    expect(truncate('12345', 4)).toBe('123…')
+    expect(truncate('ab cdef', 4)).toBe('ab…')
   })
 })
