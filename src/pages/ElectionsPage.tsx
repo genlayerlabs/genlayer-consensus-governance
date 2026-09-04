@@ -73,7 +73,7 @@ function ElectionCard({ election, elections }: { election: ElectionSummary; elec
       </div>
 
       <div className="form-grid">
-        <label className="full">Ballot — one to three slated candidates<InfoHint text={HINTS.ballot} />
+        <label className="full"><span className="label-text">Ballot — one to three slated candidates<InfoHint text={HINTS.ballot} /></span>
           <input value={picks} onChange={(event) => setPicks(event.target.value)} placeholder="0xabc…, 0xdef…" />
         </label>
       </div>

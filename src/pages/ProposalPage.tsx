@@ -210,7 +210,7 @@ export function ProposalPage() {
               {VETO_GROUNDS.map((ground, index) => <option key={ground} value={index}>{index} · {ground}</option>)}
             </select>
           </label>
-          <label>Rationale<InfoHint text="Only its keccak hash goes on-chain, committing to a rationale published within 72 hours. A veto cannot be recorded without one, and a ground can never be reused on the same proposal." />
+          <label><span className="label-text">Rationale<InfoHint text="Only its keccak hash goes on-chain, committing to a rationale published within 72 hours. A veto cannot be recorded without one, and a ground can never be reused on the same proposal." /></span>
             <textarea value={vetoRationale} onChange={(event) => setVetoRationale(event.target.value)} placeholder="Why is this being vetoed?" />
           </label>
           <TransactionButton

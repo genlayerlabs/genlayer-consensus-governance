@@ -56,6 +56,7 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
         A council action is how the council speaks: members create one, approve it to the threshold, then anyone
         executes it. The council contract — not an individual member — is what the target sees as the caller.
       </p>
+      <div className="composer-split">
       <div className="form-grid">
         <label className="full">Action type
           <select value={actionType} onChange={(event) => setActionType(Number(event.target.value))}>
@@ -78,13 +79,14 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
             {FREEZE_KIND_NAMES.map((name, index) => <option key={name} value={index}>{index} · {name}</option>)}
           </select>
         </label>}
-        <label className="full">Expires in (minutes)<InfoHint text={HINTS.expiry} />
+        <label className="full"><span className="label-text">Expires in (minutes)<InfoHint text={HINTS.expiry} /></span>
           <input value={minutes} onChange={(event) => setMinutes(event.target.value)} inputMode="numeric" />
           <small className={expiryTooFar ? 'danger-text' : 'muted'}>
             {expiryTooFar ? 'Beyond the 30-day cap — this will revert ExpiryTooFar.' : `Expires ${formatDate(expiresAt)}`}
           </small>
         </label>
       </div>
+      <div className="composer-side">
       <div className="encoded-preview"><small>Encoded actionData</small><code>{encoded.error ? '—' : encoded.data}</code></div>
       {encoded.error && <div className="error-box compact">{encoded.error}</div>}
       {!isMember && <div className="role-note"><ShieldAlert size={18} /><p><b>Not a sitting member</b>
@@ -98,6 +100,8 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
         disabled={!isMember || Boolean(encoded.error) || expiryTooFar || (needsProposal && !proposalId)}
         onConfirmed={onDone}
       >Create action</TransactionButton>
+      </div>
+      </div>
     </section>
   )
 }
