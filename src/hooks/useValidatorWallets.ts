@@ -21,7 +21,9 @@ export interface ValidatorWalletVoter {
 }
 
 const PAGE = 200n
-const MAX_PAGES = 5
+// 25 x 200 = 5,000 validators. The old ceiling of 5 pages silently stopped
+// at 1,000, which would hide a wallet rather than report a partial list.
+const MAX_PAGES = 25
 
 /**
  * The validator wallets the connected account may vote WITH.

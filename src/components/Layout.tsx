@@ -11,7 +11,7 @@ export function Layout() {
   return <div className="app-shell">
     <header className="header">
       <NavLink to="/" className="brand"><span className="brand-mark"><Hexagon size={22} /></span><span>GenLayer <b>Governance</b><small>POC</small></span></NavLink>
-      <nav><NavLink to="/">Proposals</NavLink><NavLink to="/create">Create proposal</NavLink><NavLink to="/council">Security Council</NavLink></nav>
+      <nav><NavLink to="/">Proposals</NavLink><NavLink to="/create">Create proposal</NavLink><NavLink to="/council">Security Council</NavLink><NavLink to="/delegates">Delegation</NavLink></nav>
       <div className="header-actions"><AddressManagerControl /><WalletButton /></div>
     </header>
     {loading && <div className="global-banner">Resolving governance contracts…</div>}

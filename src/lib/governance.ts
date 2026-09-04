@@ -292,6 +292,21 @@ export function voteVerdict(state: number, votes: VoteTotals, checks: ReturnType
   }
 }
 
+/**
+ * GovernanceVotingPowerLib.MIN_ENTRY_VALUE — 1,000 GEN.
+ *
+ * An `internal constant` with no getter, so it cannot be read on-chain and has
+ * to be mirrored here. It gates a NEW third-party delegate entry, per validator
+ * position rather than on the total.
+ */
+export const MIN_ENTRY_VALUE = 1_000n * 10n ** 18n
+
+/**
+ * GovernanceVotingPowerLib.MAX_TRACKED_VALIDATORS — 256, also unreadable.
+ * Caps both an account's own index and a delegate's aggregate index.
+ */
+export const MAX_TRACKED_VALIDATORS = 256
+
 // ── Security Council (CON-862) ──────────────────────────────────────────────
 
 /**
