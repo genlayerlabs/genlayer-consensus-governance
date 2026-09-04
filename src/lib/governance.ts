@@ -536,6 +536,16 @@ export function errorMessage(error: unknown): string {
     MigrationInProgress: 'Governance is currently migrating.',
     WrongState: 'The proposal is not in the required state for this action.',
   }
+  // Checked BEFORE the revert names: viem reports a failed eth_sendRawTransaction
+  // as "the contract function reverted", so a node throttle arrives wearing the
+  // costume of a governance refusal. Nothing was submitted and nothing is wrong
+  // with the call — it is a retry, not a diagnosis.
+  const throttled = /-?32005|gas rate limit|node is at capacity|retryAfterMs/i.test(raw)
+  if (throttled) {
+    const after = /"?retryAfterMs"?\s*:\s*(\d+)/.exec(raw)?.[1]
+    const wait = after ? `${(Number(after) / 1000).toFixed(1)} seconds` : 'a moment'
+    return `The node is at capacity and refused the transaction — nothing was submitted, and this says nothing about whether the call would succeed. Try again in ${wait}.\n\n${raw.slice(0, 400)}`
+  }
   const match = Object.keys(known).find((name) => raw.includes(name))
   if (match) return `${known[match]}\n\n${raw.slice(0, 600)}`
   if (/rejected/i.test(raw)) return 'The wallet request was rejected.'
