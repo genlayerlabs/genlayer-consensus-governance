@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
-import GovernanceClockABI from '@/abi/GovernanceClock.json'
 import GovernanceGESRegistryABI from '@/abi/GovernanceGESRegistry.json'
 import GovernanceVotingPowerABI from '@/abi/GovernanceVotingPower.json'
 import { publicClient } from '@/config/clients'
@@ -28,7 +27,12 @@ export function useAccountSummary() {
     if (!address || !voting || !currentSet) { setSummary(undefined); return }
     setLoading(true); setError(undefined)
     try {
-      const clock = await publicClient.readContract({ address: currentSet.clock, abi: GovernanceClockABI, functionName: 'clock' } as any) as bigint
+      // The ERC-6372 clock lives on GovernanceVotingPower, NOT on
+      // GovernanceClock: the latter only tracks freeze/maintenance windows
+      // (frozenTotal, stopState, ...) and has no clock() selector at all, so
+      // calling it here reverted and — being the first await — failed the
+      // whole summary before any other read ran.
+      const clock = await publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint
       const point = clock - 1n
       const [ges, votingPower, liveProposals, directCooldownUntil, delegateCooldownUntil] = await Promise.all([
         publicClient.readContract({ address: currentSet.gesRegistry, abi: GovernanceGESRegistryABI, functionName: 'getPastGES', args: [point] } as any) as Promise<bigint>,
