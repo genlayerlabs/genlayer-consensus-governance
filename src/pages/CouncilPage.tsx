@@ -12,7 +12,7 @@ import { useProposals } from '@/hooks/useProposals'
 import {
   ACTION_PROPOSAL_STATES, ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES,
   SEAT_STATUS_NAMES, actionProposalRequirement, actionThreshold, describeActionData,
-  encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress,
+  encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress, truncate,
 } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 
@@ -85,7 +85,7 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
               : <>
                 <option value="">Select a proposal…</option>
                 {eligible.map((proposal) => <option key={proposal.core.id.toString()} value={proposal.core.id.toString()}>
-                  GLIP #{proposal.core.id.toString()} — {proposal.title}
+                  GLIP #{proposal.core.id.toString()} — {truncate(proposal.title, 48)}
                 </option>)}
               </>}
           </select>

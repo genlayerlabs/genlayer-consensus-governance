@@ -316,7 +316,10 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .operation-editors article > header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--line); font-weight: 650; font-size: 12px; }
 .operation-editors header > div { display: flex; }
 .operation-editors header .button { min-height: 31px; padding: 5px 8px; }
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 16px; }
+.form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; padding: 16px; }
+/* A <select> is as wide as its widest option and a grid track will not shrink
+   below that, so one long option pushed the whole panel past its column. */
+.form-grid select, .form-grid input, .form-grid textarea { min-width: 0; max-width: 100%; }
 .form-grid .full { grid-column: 1 / -1; }
 .form-grid label small { color: var(--muted); font-size: 10px; }
 .form-grid textarea { min-height: 72px; resize: vertical; }
