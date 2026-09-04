@@ -12,7 +12,7 @@ import { useProposals } from '@/hooks/useProposals'
 import type { ProposalSummary } from '@/lib/types'
 import {
   ACTION_PROPOSAL_STATES, ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES,
-  SEAT_STATUS_NAMES, actionProposalRequirement, actionThreshold, describeActionData,
+  SEAT_STATUS_NAMES, actionProposalId, actionProposalRequirement, actionThreshold, describeActionData,
   encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress, truncate,
 } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
