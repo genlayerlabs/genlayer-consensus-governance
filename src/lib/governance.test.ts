@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { descriptionHash, encodeOperation, formatGen, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
+import { descriptionHash, encodeOperation, formatGen, preserveAlignedBlocks, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -25,6 +25,21 @@ describe('governance helpers', () => {
 
   it('formats large GEN values without unsafe Number conversion', () => {
     expect(formatGen(parseEther('462000000.125'), 3)).toBe('462,000,000.125')
+  })
+
+  it('fences hand-aligned box-drawing tables so markdown cannot reflow them', () => {
+    const table = ['┌──────┬───────┐', '│ Key  │ Value │', '└──────┴───────┘'].join('\n')
+    const out = preserveAlignedBlocks(`# Title\n\ntext\n\n${table}\n\ntail`)
+    expect(out).toContain('```text\n┌──────┬───────┐')
+    expect(out).toContain('└──────┴───────┘\n```')
+    // prose is untouched
+    expect(out).toContain('# Title')
+    expect(out).toContain('tail')
+  })
+
+  it('leaves an existing code fence alone', () => {
+    const input = '```\n┌──┐\n└──┘\n```'
+    expect(preserveAlignedBlocks(input)).toBe(input)
   })
 
   it('keeps sub-unit amounts legible instead of rendering a bare 0', () => {

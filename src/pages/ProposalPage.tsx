@@ -19,12 +19,12 @@ import { InfoHint } from '@/components/InfoHint'
 import { useProposal } from '@/hooks/useProposal'
 import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
-import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, voteChecks } from '@/lib/governance'
+import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, preserveAlignedBlocks, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, voteChecks } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 import { Button } from '@/components/Button'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TransactionButton } from '@/components/TransactionButton'
-import type { ContractSet, Operation } from '@/lib/types'
+import type { ContractSet, Operation, ProposalSummary } from '@/lib/types'
 
 function parseId(value?: string) {
   try { const id = BigInt(value ?? ''); return id > 0n ? id : undefined } catch { return undefined }
@@ -52,12 +52,14 @@ function Rule({ title, current, required, met, detail }: { title: string; curren
   return <article className={`rule-card ${met ? 'met' : 'unmet'}`}><span>{met ? <Check size={17} /> : <Circle size={17} />}</span><div><small>{title}</small><b>{current} <em>{met ? 'meets' : 'needs'} {required}</em></b><p>{detail}</p></div></article>
 }
 
-function Lifecycle({ state, voteStart, voteEnd, eta, deadline, requiresRiskReview, hasL1 }: { state: number; voteStart: bigint; voteEnd: bigint; eta: bigint; deadline: bigint; requiresRiskReview: boolean; hasL1: boolean }) {
+function Lifecycle({ state, voteStart, voteEnd, eta, deadline, requiresRiskReview, hasL1, rules, postVote }: { state: number; voteStart: bigint; voteEnd: bigint; eta: bigint; deadline: bigint; requiresRiskReview: boolean; hasL1: boolean; rules: ProposalSummary['rules']; postVote: ProposalSummary['postVote'] }) {
   const steps = [
     { label: 'Created & preparation', when: `Voting opens ${formatDate(voteStart)}`, done: state > 0, current: state === 0 },
     { label: 'Active voting', when: `Deadline ${formatDate(voteEnd)}`, done: state > 1, current: state === 1 },
     { label: 'Vote outcome', when: state === 2 ? 'Defeated — see passage rules' : 'Succeeded after settlement', done: state >= 3 && state !== 13, current: state === 2 || state === 3 || state === 13 },
-    { label: 'GLF veto window', when: 'Grounds and extensions are recorded on-chain', done: state > 4 && state !== 5, current: state === 4 || state === 5 },
+    // vetoClose = voteEnd + the window in force; the extension (§5.5 rule 1)
+    // swaps in extendedVetoWindow, so read the flag rather than assuming.
+    { label: 'GLF veto window', when: `Closes ${formatDate(voteEnd + BigInt(postVote.vetoExtended ? rules.extendedVetoWindow : rules.vetoWindow))}${postVote.vetoExtended ? ' (extended)' : ''}`, done: state > 4 && state !== 5, current: state === 4 || state === 5 },
     ...(requiresRiskReview ? [{ label: 'Risk Review', when: 'Security Council and GLF approval state', done: state > 6 && state !== 5, current: state === 6 }] : []),
     { label: 'Class timelock', when: eta ? `Execution ETA ${formatDate(eta)}` : 'ETA is set during settlement', done: state > 7 && state !== 11, current: state === 7 },
     { label: 'Execution window', when: deadline ? `Expires ${formatDate(deadline)}` : 'Permissionless after timelock', done: state === 9, current: state === 8 || state === 10 || state === 11 },
@@ -124,14 +126,14 @@ export function ProposalPage() {
         </div>
       </section>
 
-      <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain description</p><h2>Proposal text</h2></div><span className={descriptionVerified ? 'verified' : 'unverified'}>{descriptionVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div><div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{proposal.description}</ReactMarkdown></div><details><summary>Raw text and hash</summary><pre className="raw-text">{proposal.description}</pre><code className="hash">{proposal.core.descriptionHash}</code></details></section>
+      <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain description</p><h2>Proposal text</h2></div><span className={descriptionVerified ? 'verified' : 'unverified'}>{descriptionVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div><div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{preserveAlignedBlocks(proposal.description)}</ReactMarkdown></div><details><summary>Raw text and hash</summary><pre className="raw-text">{proposal.description}</pre><code className="hash">{proposal.core.descriptionHash}</code></details></section>
 
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">Execution payload</p><h2>{proposal.operations.length ? 'Ordered operations' : 'Signalling RFC'}</h2></div><span className={payloadVerified ? 'verified' : 'unverified'}>{payloadVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div>
         {proposal.operations.length === 0 ? <div className="empty inline"><p>This proposal has no executable operations. Its zero payload hash identifies it as an RFC.</p></div> : <div className="operations">{proposal.operations.map((operation, index) => { const decoded = decodeKnownOperation(operation, proposal.contractSet); return <article className="operation" key={`${operation.target}-${index}`}><span className="operation-index">{index + 1}</span><div><p><b>{decoded?.contract ?? shortAddress(operation.target)}</b> · <span className={proposal.operationPermissions[index] ? 'success-text' : 'danger-text'}>{proposal.operationPermissions[index] ? 'Permitted for class' : 'Not currently permitted'}</span></p><a href={explorerAddress(operation.target)} target="_blank" rel="noreferrer">{operation.target}</a><dl>{decoded && <><div><dt>Decoded call</dt><dd><code>{decoded.signature}</code></dd></div>{decoded.args && <div><dt>Decoded arguments</dt><dd><pre>{decoded.args}</pre></dd></div>}</>}<div><dt>Selector</dt><dd><code>{operation.selector}</code></dd></div><div><dt>Native value</dt><dd>{formatGen(operation.value)} GEN</dd></div><div><dt>Raw arguments</dt><dd><code>{operation.args}</code></dd></div><div><dt>Calldata</dt><dd><code>{operation.selector}{operation.args.slice(2)}</code></dd></div></dl></div></article> })}</div>}
         <details><summary>Payload commitment</summary><code className="hash">{proposal.core.payloadHash}</code></details>
       </section>
 
-      <section className="panel"><p className="eyebrow">Lifecycle</p><h2>Proposal timeline</h2><Lifecycle state={proposal.state} voteStart={proposal.voteStart} voteEnd={proposal.voteEnd} eta={proposal.executionEta} deadline={proposal.executionDeadline} requiresRiskReview={proposal.rules.requiresRiskReview} hasL1={hasL1} /><div className="contract-pin"><small>Pinned contract set</small><code>{proposal.core.contractsHash}</code><p>Historical voting power, GES, and permissions resolve against this immutable contract set.</p></div></section>
+      <section className="panel"><p className="eyebrow">Lifecycle</p><h2>Proposal timeline</h2><Lifecycle state={proposal.state} voteStart={proposal.voteStart} voteEnd={proposal.voteEnd} eta={proposal.executionEta} deadline={proposal.executionDeadline} requiresRiskReview={proposal.rules.requiresRiskReview} hasL1={hasL1} rules={proposal.rules} postVote={proposal.postVote} /><div className="contract-pin"><small>Pinned contract set</small><code>{proposal.core.contractsHash}</code><p>Historical voting power, GES, and permissions resolve against this immutable contract set.</p></div></section>
 
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain VoteCast logs</p><h2>Voters</h2></div><span>{voters.records.length} loaded</span></div><div className="tabs">{['all', '1', '0', '2'].map((value) => <button className={voterFilter === value ? 'active' : ''} key={value} onClick={() => setVoterFilter(value)}>{value === 'all' ? 'All' : SUPPORT_NAMES[Number(value)]}</button>)}</div>
         {voters.progress && <p className="scan-progress">{voters.progress}</p>}{voters.error && <div className="error-box">{voters.partial ? 'Partial results shown. ' : ''}{voters.error}<Button variant="secondary" onClick={() => void voters.retry()}>Retry scan</Button></div>}

@@ -49,6 +49,54 @@ export function formatGen(value: bigint, maximumFractionDigits = 2): string {
   return trimmed ? `${formattedWhole}.${trimmed}` : formattedWhole
 }
 
+/** Box-drawing glyphs (U+2500 block) plus the ASCII pipe used for hand-aligned tables. */
+const BOX_DRAWING = /[\u2500-\u257F]/
+
+/**
+ * Fence runs of hand-aligned box-drawing lines so they survive markdown.
+ *
+ * A proposal description is plain text typed into a monospace textarea, and
+ * people draw tables in it with box-drawing characters. Markdown has no idea
+ * those lines are a table: it renders them as ordinary paragraphs in a
+ * proportional font, the column alignment collapses, and the vertical rules
+ * scatter across the text. remark-gfm does not help — this is not GFM pipe
+ * syntax.
+ *
+ * Wrapping each run in a code fence restores exactly what the author saw when
+ * they typed it: monospace, whitespace preserved, and horizontally scrollable
+ * rather than overflowing the panel.
+ *
+ * Lines already inside a fence are left alone, so a deliberate code block is
+ * never re-wrapped.
+ */
+export function preserveAlignedBlocks(text: string): string {
+  const lines = text.split('\n')
+  const output: string[] = []
+  let fenced = false
+  let run: string[] = []
+  const flush = () => {
+    if (run.length === 0) return
+    output.push('```text', ...run, '```')
+    run = []
+  }
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      flush()
+      fenced = !fenced
+      output.push(line)
+      continue
+    }
+    if (!fenced && BOX_DRAWING.test(line)) {
+      run.push(line)
+      continue
+    }
+    flush()
+    output.push(line)
+  }
+  flush()
+  return output.join('\n')
+}
+
 export function formatPercent(numerator: bigint, denominator: bigint, digits = 1): string {
   if (denominator === 0n) return '—'
   const scale = 10n ** BigInt(digits)
