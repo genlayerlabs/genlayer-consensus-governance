@@ -15,6 +15,7 @@
   --orange: #ffb776;
   --red: #ff8181;
   --blue: #91bbff;
+  --yellow: #f2d675;
   --radius: 16px;
 }
 
@@ -187,9 +188,21 @@ input:hover, textarea:hover, select:hover { border-color: #3a4d48; }
 .badges { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
 .pill, .status { display: inline-flex; width: max-content; padding: 5px 8px; border-radius: 7px; color: #adbbb7; background: #1c2826; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .status { color: var(--blue); background: #19273c; }
-.status-active, .status-succeeded, .status-queued, .status-executed { color: var(--green); background: var(--green-dark); }
+/* The badge answers "does this need me?", so the colour has to separate
+   states that share an outcome but not an obligation. Queued and Executed
+   were both green: one is a proposal waiting for someone to execute it, the
+   other is finished business, and on a list they read identically.
+
+   green  — live, someone can act now (Active, Succeeded needs a settle)
+   yellow — waiting on the clock (Timelock, Queued)
+   orange — a specific body has to decide (Veto Window, Risk Review)
+   red    — terminal failure
+   white  — done, archival: Executed carries no obligation and should recede */
+.status-active, .status-succeeded { color: var(--green); background: var(--green-dark); }
+.status-timelock, .status-queued { color: var(--yellow); background: #332c14; }
+.status-veto-window, .status-risk-review { color: var(--orange); background: #36271a; }
 .status-defeated, .status-vetoed, .status-expired, .status-voided, .status-spam, .status-execution-failed { color: var(--red); background: #361d20; }
-.status-veto-window, .status-risk-review, .status-timelock { color: var(--orange); background: #36271a; }
+.status-executed { color: var(--text); background: #0b1211; border: 1px solid var(--line); }
 .proposal-primary h2 { margin: 13px 0 7px; font-size: 19px; letter-spacing: -.015em; }
 .proposal-primary p { margin: 0; color: var(--muted); font-size: 12px; }
 .proposal-primary .proposal-dates { margin-top: 5px; color: #70817c; font-size: 10px; }
