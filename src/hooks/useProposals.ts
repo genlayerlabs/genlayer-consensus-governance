@@ -9,7 +9,7 @@ import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { normalizeCore, normalizePostVote, normalizeRules, normalizeVotes, titleFromDescription } from '@/lib/governance'
-import { readCache, writeCache } from '@/lib/logCache'
+import { cacheableHead, readCache, writeCache } from '@/lib/logCache'
 import { findLatestLogBackwards, scanLogs } from '@/lib/rpc'
 import type { ContractSet, ProposalSummary } from '@/lib/types'
 
@@ -87,6 +87,28 @@ export async function fetchProposal(voting: Address, id: bigint, account?: Addre
   }
 }
 
+/**
+ * Merge proposals into the on-disk creation index.
+ *
+ * Only the identity of a proposal is stored — id, creation block, creation
+ * tx. Everything mutable (state, votes, post-vote fields) is deliberately
+ * excluded: it is re-read on every render from cheap contract calls, and
+ * caching it would show a stale tally.
+ */
+function rememberIndex(voting: Address, added: ProposalSummary[], toBlock?: bigint) {
+  const existing = readCache<any>('proposal-index', voting, 'all', (raw) => ({ ...raw, id: BigInt(raw.id), blockNumber: BigInt(raw.blockNumber) }))
+  const byId = new Map<string, any>()
+  for (const entry of existing?.records ?? []) byId.set(String(entry.id), entry)
+  for (const proposal of added) {
+    if (proposal.blockNumber === undefined) continue
+    byId.set(String(proposal.core.id), { id: proposal.core.id, blockNumber: proposal.blockNumber, transactionHash: proposal.transactionHash, args: { id: proposal.core.id } })
+  }
+  if (byId.size === 0) return
+  const highest = toBlock ?? existing?.toBlock ?? 0n
+  writeCache('proposal-index', voting, 'all', { toBlock: highest, records: [...byId.values()] },
+    (entry: any) => ({ id: entry.id.toString(), blockNumber: entry.blockNumber.toString(), transactionHash: entry.transactionHash }))
+}
+
 export function useProposals() {
   const { voting } = useContracts()
   const { address } = useWallet()
@@ -96,10 +118,37 @@ export function useProposals() {
   const [error, setError] = useState<string>()
   const [progress, setProgress] = useState('')
   const loaded = useRef(new Set<string>())
+  /** highest block whose ProposalCreated logs are already indexed */
+  const indexedTo = useRef<bigint | undefined>(undefined)
 
   useEffect(() => {
-    setProposals([]); setCursor(undefined); setError(undefined); loaded.current.clear()
+    setProposals([]); setCursor(undefined); setError(undefined); loaded.current.clear(); indexedTo.current = undefined
   }, [voting, address])
+
+  /**
+   * Render the indexed proposals immediately, then look only for new ones.
+   *
+   * ProposalCreated is append-only, so the ids seen before are still the ids
+   * now — only the tail can have grown. The per-proposal DATA is deliberately
+   * NOT cached: state, votes and post-vote fields change constantly, and they
+   * come from cheap readContract calls. It is the log scan that was expensive,
+   * and that is what the index removes.
+   */
+  const loadIndexed = useCallback(async () => {
+    if (!voting) return
+    const index = readCache<any>('proposal-index', voting, 'all', (raw) => ({ ...raw, id: BigInt(raw.id), blockNumber: BigInt(raw.blockNumber) }))
+    if (!index || index.records.length === 0) return
+    indexedTo.current = index.toBlock
+    setLoading(true)
+    try {
+      const hydrated = await Promise.all(index.records.map((entry) => fetchProposal(voting, entry.id, address, entry)))
+      for (const entry of index.records) loaded.current.add(String(entry.id))
+      setProposals(hydrated.sort((a, b) => (a.core.id === b.core.id ? 0 : a.core.id > b.core.id ? -1 : 1)))
+    } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
+    finally { setLoading(false) }
+  }, [voting, address])
+
+  useEffect(() => { void loadIndexed() }, [loadIndexed])
 
   const loadMore = useCallback(async () => {
     if (!voting || loading) return
@@ -124,6 +173,7 @@ export function useProposals() {
       fresh.forEach((log) => loaded.current.add(String(log.args.id)))
       const hydrated = await Promise.all([...fresh].reverse().map((log) => fetchProposal(voting, log.args.id, address, log)))
       setProposals((current) => [...current, ...hydrated])
+      rememberIndex(voting, hydrated)
     } catch (error) {
       setError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -131,6 +181,33 @@ export function useProposals() {
     }
   }, [voting, address, cursor, loading])
 
+  /**
+   * Look only for proposals created since the index was written.
+   *
+   * The expensive part was never reading a proposal — that is a handful of
+   * readContract calls — it was re-walking history for ProposalCreated on
+   * every visit. Indexed ids are rendered first; this covers the tail.
+   */
+  const scanTail = useCallback(async () => {
+    if (!voting || indexedTo.current === undefined) return
+    const from = indexedTo.current + 1n
+    try {
+      const head = await publicClient.getBlockNumber()
+      if (from > head) return
+      const found = await scanLogs({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, fromBlock: from, toBlock: head })
+      const fresh = found.filter((log: any) => !loaded.current.has(String(log.args.id)))
+      if (fresh.length === 0) {
+        rememberIndex(voting, [], cacheableHead(head))
+        return
+      }
+      fresh.forEach((log: any) => loaded.current.add(String(log.args.id)))
+      const hydrated = await Promise.all([...fresh].reverse().map((log: any) => fetchProposal(voting, log.args.id, address, log)))
+      setProposals((current) => [...hydrated, ...current])
+      rememberIndex(voting, hydrated, cacheableHead(head))
+    } catch { /* the indexed list is already on screen; a failed tail scan is not fatal */ }
+  }, [voting, address])
+
+  useEffect(() => { void scanTail() }, [scanTail])
   useEffect(() => { if (voting && proposals.length === 0 && cursor === undefined) void loadMore() }, [voting, proposals.length, cursor, loadMore])
   return { proposals, loading, error, progress, loadMore, hasMore: cursor === undefined || cursor >= deploymentConfig.deploymentStartBlock }
 }
