@@ -121,7 +121,12 @@ export function byteLength(value: string): number {
 
 export function formatDate(timestamp: bigint | number): string {
   const value = typeof timestamp === 'bigint' ? Number(timestamp) : timestamp
-  return value ? new Date(value * 1_000).toLocaleString() : '—'
+  // Chain timestamps are unix seconds (UTC); toLocaleString with no locale
+  // renders them in the viewer's own zone, which is what a deadline should
+  // read as. timeZoneName makes that zone EXPLICIT: without it a screenshot
+  // or a pasted time is ambiguous the moment it leaves the machine that
+  // produced it — and these are deadlines people coordinate around.
+  return value ? new Date(value * 1_000).toLocaleString(undefined, { timeZoneName: 'short' }) : '—'
 }
 
 export function descriptionHash(description: string): Hex {
