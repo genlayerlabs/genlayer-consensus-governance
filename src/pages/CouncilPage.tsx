@@ -240,12 +240,13 @@ export function CouncilPage() {
             <b>{ACTION_TYPE_NAMES[action.actionType] ?? `Type ${action.actionType}`}</b>
             <span>{targetTitle(action.actionType, action.actionData, proposals)}</span>
             <span>{action.approvals} / {required} approvals</span>
-            <span>{action.executed ? 'Executed' : expired ? 'Expired' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
+            <span className={`seat-status support-${action.executed ? 1 : expired ? 0 : 2}`}>
+              {action.executed ? 'Executed' : expired ? 'Expired' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
             <p>By {shortAddress(action.creator)} · {expired ? 'Lapsed' : 'Expires'} {formatDate(action.expiresAt)}</p>
             {action.approvers.length > 0 && <div className="approver-list">
               {action.approvers.map((approval, index) => <span key={`${approval.address}-${approval.transactionHash}`}>
                 <b>{index + 1}.</b>
-                <a href={explorerAddress(approval.address)} target="_blank" rel="noreferrer">{shortAddress(approval.address)}</a>
+                <a href={explorerAddress(approval.address)} target="_blank" rel="noreferrer"><code>{approval.address}</code></a>
                 <em>{approval.at === undefined ? 'time unavailable' : formatDate(approval.at)}</em>
               </span>)}
             </div>}

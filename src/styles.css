@@ -58,7 +58,11 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 /* One approval per row, ordered by when it landed — five wrapped inline read
    as one run of text and the reader had to parse where each pair ended.
    A fixed address column keeps the times aligned down the list. */
-.approver-list span { display: grid; grid-template-columns: 14px 96px auto; align-items: center; gap: 8px; }
+.approver-list span { display: grid; grid-template-columns: 14px auto 1fr; align-items: center; gap: 12px; }
+/* Full addresses, not the 0x94FE…DB39 shorthand used where space is tight:
+   a member checking who approved is comparing against a roster, and the row
+   has the width to spare. */
+.approver-list code { font-size: 11px; letter-spacing: -.01em; }
 .approver-list b { color: var(--muted); font-weight: 400; }
 .approver-list em { color: var(--muted); font-style: normal; }
 .encoded-preview { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #090f0e; }
