@@ -48,6 +48,8 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 .account-summary > span, .account-summary > div > span:last-child { display: flex; flex-direction: column; gap: 2px; }
 .account-summary small { color: var(--muted); font-size: 11px; }
 .account-summary b { font-size: 13px; font-weight: 600; }
+.wallet-actions { display: inline-flex; align-items: center; gap: 4px; }
+
 .vote-as { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .vote-as > small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .vote-as-list { display: flex; flex-direction: column; gap: 6px; }
