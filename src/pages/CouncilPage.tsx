@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Check, RefreshCw, ShieldAlert, Snowflake, Users } from 'lucide-react'
+import { AlertTriangle, Check, ExternalLink, RefreshCw, ShieldAlert, Snowflake } from 'lucide-react'
 import SecurityCouncilABI from '@/abi/SecurityCouncil.json'
 import { Button } from '@/components/Button'
 import { InfoHint } from '@/components/InfoHint'
@@ -9,6 +9,7 @@ import { useWallet } from '@/config/WalletContext'
 import { useCouncil } from '@/hooks/useCouncil'
 import { useCouncilActions } from '@/hooks/useCouncilActions'
 import { useProposals } from '@/hooks/useProposals'
+import type { ProposalSummary } from '@/lib/types'
 import {
   ACTION_PROPOSAL_STATES, ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES,
   SEAT_STATUS_NAMES, actionProposalRequirement, actionThreshold, describeActionData,
@@ -29,7 +30,21 @@ const HINTS = {
     'An action that is never executed simply lapses — no event is emitted, and actionStatus still reports Approved past this instant. Execution is refused after it.',
 }
 
-function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`; isMember: boolean; onDone: () => void }) {
+/** "GLIP #3 — Grant the quarantine manager role" beats "Proposal #3": the log
+ *  is read by members deciding whether to approve, and an id alone makes them
+ *  leave the page to find out what they are approving. Falls back to the plain
+ *  description when the proposal is outside the scanned range. */
+function targetTitle(actionType: number, actionData: `0x${string}`, proposals: ProposalSummary[]): string {
+  const id = actionProposalId(actionType, actionData)
+  const match = id === undefined ? undefined : proposals.find((proposal) => proposal.core.id === id)
+  if (!match) return describeActionData(actionType, actionData)
+  return `GLIP #${id} — ${truncate(match.title, 44)}`
+}
+
+function ActionComposer({ council, isMember, onDone, proposals, proposalsLoading }: {
+  council?: `0x${string}`; isMember: boolean; onDone: () => void
+  proposals: ProposalSummary[]; proposalsLoading: boolean
+}) {
   const [actionType, setActionType] = useState(3)
   const [proposalId, setProposalId] = useState('')
   const [newClass, setNewClass] = useState('1')
@@ -37,7 +52,6 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
   const [approvalExpiry, setApprovalExpiry] = useState('')
   const [freezeKind, setFreezeKind] = useState(0)
   const [minutes, setMinutes] = useState('60')
-  const { proposals, loading: proposalsLoading } = useProposals()
 
   const expiresAt = useMemo(() => BigInt(Math.floor(Date.now() / 1000) + Math.max(1, Number(minutes) || 0) * 60), [minutes])
   const encoded = useMemo(() => {
@@ -133,6 +147,8 @@ export function CouncilPage() {
   const { address } = useWallet()
   const { overview, freeze, loading, error, refresh } = useCouncil()
   const actions = useCouncilActions()
+  // Loaded once here: the composer picks from them and the log names them.
+  const { proposals, loading: proposalsLoading } = useProposals()
   const now = BigInt(Math.floor(Date.now() / 1000))
 
   const isMember = useMemo(
@@ -206,7 +222,8 @@ export function CouncilPage() {
         })}</div>
       </section>
 
-      <ActionComposer council={currentSet.council} isMember={isMember} onDone={() => void actions.refresh()} />
+      <ActionComposer council={currentSet.council} isMember={isMember} onDone={() => void actions.refresh()}
+        proposals={proposals} proposalsLoading={proposalsLoading} />
       </div>
 
       <section className="panel">
@@ -221,7 +238,7 @@ export function CouncilPage() {
           return <article key={action.actionId}>
             <span className={`vote-dot support-${action.executed ? 1 : expired ? 0 : 2}`} />
             <b>{ACTION_TYPE_NAMES[action.actionType] ?? `Type ${action.actionType}`}</b>
-            <span>{describeActionData(action.actionType, action.actionData)}</span>
+            <span>{targetTitle(action.actionType, action.actionData, proposals)}</span>
             <span>{action.approvals} / {required} approvals</span>
             <span>{action.executed ? 'Executed' : expired ? 'Expired' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
             <p>
@@ -240,7 +257,8 @@ export function CouncilPage() {
                 onConfirmed={() => { void actions.refresh(); void refresh() }}
               >Execute</TransactionButton>}
             </div>}
-            {action.transactionHash && <a href={explorerTx(action.transactionHash)} target="_blank" rel="noreferrer"><Users size={14} /></a>}
+            {action.transactionHash && <a className="tx-link" href={explorerTx(action.transactionHash)} target="_blank" rel="noreferrer">
+              View on explorer <ExternalLink size={12} /></a>}
           </article>
         })}
         {!actions.loading && actions.actions.length === 0 && <div className="empty inline">

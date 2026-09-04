@@ -1,7 +1,7 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
-  ACTION_PROPOSAL_STATES, actionProposalRequirement, truncate } from './governance'
+  ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, truncate } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -168,5 +168,18 @@ describe('governance helpers', () => {
     expect(truncate('12345', 5)).toBe('12345')
     expect(truncate('12345', 4)).toBe('123…')
     expect(truncate('ab cdef', 4)).toBe('ab…')
+  })
+
+  it('recovers the targeted proposal id only for the types that carry one', () => {
+    const encoded = encodeActionData(3, { proposalId: '3' })
+    expect(actionProposalId(3, encoded)).toBe(3n)
+    // RaiseClass appends a class byte; the id is still the first word
+    expect(actionProposalId(2, encodeActionData(2, { proposalId: '7', newClass: '1' }))).toBe(7n)
+    // Freeze/Unfreeze carry no proposal — decoding their data as a uint256
+    // would yield the freeze kind and label an action with the wrong proposal
+    expect(actionProposalId(5, encodeActionData(5, { freezeKind: 1 }))).toBeUndefined()
+    expect(actionProposalId(6, '0x')).toBeUndefined()
+    // malformed data renders a row, it does not throw the page away
+    expect(actionProposalId(3, '0x1234')).toBeUndefined()
   })
 })

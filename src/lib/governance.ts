@@ -409,6 +409,17 @@ export function encodeActionData(actionType: number, input: { proposalId?: strin
 }
 
 /** Human-readable payload for an action row, decoded from its raw actionData. */
+/** The proposal an action targets, for the four types that reference one.
+ *  Returns undefined for the rest and for data that will not decode — a
+ *  malformed action must render as a row, not throw the page away. */
+export function actionProposalId(actionType: number, actionData: Hex): bigint | undefined {
+  if (ACTION_PROPOSAL_STATES[actionType] === undefined) return undefined
+  try {
+    const [id] = decodeAbiParameters([{ type: 'uint256' }], actionData)
+    return id as bigint
+  } catch { return undefined }
+}
+
 export function describeActionData(actionType: number, actionData: Hex): string {
   try {
     switch (actionType) {
