@@ -267,6 +267,14 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .vote-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
 .vote-dot.support-1 { background: var(--green); }
 .vote-dot.support-2 { background: var(--blue); }
+/* Seat, status and term are three neighbouring cells of similar-length text,
+   which read as one run at half-page width. Carrying the dot's colour onto the
+   status word separates it without adding a rule or more spacing — and the
+   colour already means something: green Active, blue Hold-over, red Vacant. */
+.seat-status { font-weight: 600; }
+.seat-status.support-0 { color: var(--red); }
+.seat-status.support-1 { color: var(--green); }
+.seat-status.support-2 { color: var(--blue); }
 .your-power { display: flex; flex-direction: column; gap: 4px; padding: 14px; background: #0b1311; border-radius: 10px; margin-bottom: 14px; }
 .your-power b { font-size: 21px; }
 .your-power p { margin: 0; color: var(--muted); font-size: 12px; }
