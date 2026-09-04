@@ -11,7 +11,7 @@ import { Button } from '@/components/Button'
 export function ProposalsPage() {
   const { voting } = useContracts()
   const { address } = useWallet()
-  const { proposals, loading, error, progress, loadMore, hasMore } = useProposals()
+  const { proposals, loading, error, progress, refresh } = useProposals()
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [proposalClass, setProposalClass] = useState('all')
@@ -50,7 +50,7 @@ export function ProposalsPage() {
         })}
         {!loading && proposals.length === 0 && <div className="empty"><h2>No proposals discovered yet</h2><p>The browser scans `ProposalCreated` logs in bounded ranges. Continue scanning for older activity.</p></div>}
       </section>
-      <div className="load-more">{progress && <p>{progress}</p>}<Button variant="secondary" onClick={() => void loadMore()} disabled={loading || !hasMore}>{loading ? 'Scanning chain…' : hasMore ? 'Load more proposals' : 'Reached genesis'}</Button></div>
+      <div className="load-more">{progress && <p>{progress}</p>}<Button variant="secondary" onClick={() => void refresh()} disabled={loading}>{loading ? 'Reading chain…' : 'Refresh'}</Button></div>
     </>}
   </div>
 }
