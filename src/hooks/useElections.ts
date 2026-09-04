@@ -49,10 +49,43 @@ export function useElections() {
       const count = BigInt(await read('electionCount') as never)
       if (count === 0n) { setElections([]); return }
 
+      const ids = Array.from({ length: Number(count) }, (_unused, index) => BigInt(index + 1))
+      /** Everything readable without a single log: state, slate, winners, ranking. */
+      const readRows = async (starts: Map<string, CachedStart>) => {
+        const rows = await Promise.all(ids.map(async (id): Promise<ElectionSummary> => {
+          const [state, slate, winners, ranking] = await Promise.all([
+            read('state', [id]).then((value) => Number(value)).catch(() => 0),
+            read('electionSlate', [id]).catch(() => []) as Promise<Address[]>,
+            read('electionWinners', [id]).catch(() => [[], []]) as Promise<[Address[], Address[]]>,
+            read('electionRanking', [id]).catch(() => []) as Promise<Address[]>,
+          ])
+          const start = starts.get(String(id))
+          return {
+            id, state, slate, ranking,
+            winners: winners[0] ?? [], alternates: winners[1] ?? [],
+            kind: start ? start.kind : undefined,
+            seatsAtStake: start ? start.seatsAtStake : undefined,
+            voteStart: start ? BigInt(start.voteStart) : undefined,
+            voteEnd: start ? BigInt(start.voteEnd) : undefined,
+            transactionHash: start?.transactionHash as never,
+            blockNumber: start?.blockNumber ? BigInt(start.blockNumber) : undefined,
+          }
+        }))
+        rows.sort((a, b) => (a.id === b.id ? 0 : a.id > b.id ? -1 : 1))
+        return rows
+      }
+
       // ElectionStarted is append-only, so the metadata it carries is cached.
       const cached = readCache<CachedStart>('election-starts', address, 'all', (raw) => raw)
       const starts = new Map<string, CachedStart>()
       for (const entry of cached?.records ?? []) starts.set(entry.id, entry)
+
+      // Paint what the contract can answer straight away. Only the KIND, seats
+      // and phase bounds come from logs, and finding the floor for that scan
+      // costs several rounds of eth_getCode on a cold cache — no reason to hold
+      // an entire election list behind metadata for one badge.
+      setElections(await readRows(starts))
+      setLoading(false)
 
       const head = await publicClient.getBlockNumber()
       const from = cached && cached.toBlock > 0n ? cached.toBlock + 1n : await contractCreationBlock(address)
@@ -76,28 +109,7 @@ export function useElections() {
         if (safeTo >= from) writeCache<CachedStart>('election-starts', address, 'all', { toBlock: safeTo, records: [...starts.values()] }, (entry) => entry)
       }
 
-      const ids = Array.from({ length: Number(count) }, (_, index) => BigInt(index + 1))
-      const rows = await Promise.all(ids.map(async (id): Promise<ElectionSummary> => {
-        const [state, slate, winners, ranking] = await Promise.all([
-          read('state', [id]).then((value) => Number(value)).catch(() => 0),
-          read('electionSlate', [id]).catch(() => []) as Promise<Address[]>,
-          read('electionWinners', [id]).catch(() => [[], []]) as Promise<[Address[], Address[]]>,
-          read('electionRanking', [id]).catch(() => []) as Promise<Address[]>,
-        ])
-        const start = starts.get(String(id))
-        return {
-          id, state, slate, ranking,
-          winners: winners[0] ?? [], alternates: winners[1] ?? [],
-          kind: start ? start.kind : undefined,
-          seatsAtStake: start ? start.seatsAtStake : undefined,
-          voteStart: start ? BigInt(start.voteStart) : undefined,
-          voteEnd: start ? BigInt(start.voteEnd) : undefined,
-          transactionHash: start?.transactionHash as never,
-          blockNumber: start?.blockNumber ? BigInt(start.blockNumber) : undefined,
-        }
-      }))
-      rows.sort((a, b) => (a.id === b.id ? 0 : a.id > b.id ? -1 : 1))
-      setElections(rows)
+      setElections(await readRows(starts))
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
   }, [currentSet])

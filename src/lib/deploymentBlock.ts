@@ -4,6 +4,8 @@ import { publicClient } from '@/config/clients'
 
 const KEY = 'genlayer-governance-deploy-block'
 const memory = new Map<string, bigint>()
+/** Parallel probes per round. Nine rounds cover a 20M-block chain. */
+const PROBES = 8
 
 function stored(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(KEY) ?? '{}') } catch { return {} }
@@ -18,8 +20,8 @@ function stored(): Record<string, string> {
  * that is ~2,060 capped requests before anything renders, which is what the
  * council action log was doing.
  *
- * A contract's code is absent before its creation and present after, so ~25
- * eth_getCode calls pin the exact block. Exact matters: a guessed floor can
+ * A contract's code is absent before its creation and present after, so a
+ * handful of parallel eth_getCode rounds pin the exact block. Exact matters: a guessed floor can
  * hide logs, and this cannot, because nothing existed to emit them below it.
  * The answer is immutable, so it is cached permanently per address and never
  * re-derived.
@@ -47,10 +49,26 @@ export async function contractCreationBlock(address: Address): Promise<bigint> {
     // Invariant: no code at `low`, code at `high`. If the floor already has
     // code the contract predates it and the floor is the best answer we have.
     if (await hasCode(low)) return low
+    // PROBES-way search rather than a bisection: a plain binary search over
+    // 20.6M blocks is ~25 SEQUENTIAL round trips, about eight seconds of a
+    // blank page. Probing several points at once cuts the depth to log_9,
+    // roughly nine rounds, at the cost of calls that are cheap and parallel.
     while (high - low > 1n) {
-      const mid = (low + high) / 2n
-      if (await hasCode(mid)) high = mid
-      else low = mid
+      const span = high - low
+      if (span <= BigInt(PROBES)) {
+        // Small enough to settle in one round: ask about every block left.
+        const blocks = Array.from({ length: Number(span) - 1 }, (_unused, index) => low + BigInt(index) + 1n)
+        const results = await Promise.all(blocks.map(hasCode))
+        const first = results.indexOf(true)
+        high = first === -1 ? high : blocks[first]
+        break
+      }
+      const step = span / BigInt(PROBES + 1)
+      const blocks = Array.from({ length: PROBES }, (_unused, index) => low + step * BigInt(index + 1))
+      const results = await Promise.all(blocks.map(hasCode))
+      const first = results.indexOf(true)
+      if (first === -1) low = blocks[PROBES - 1]
+      else { high = blocks[first]; low = first === 0 ? low : blocks[first - 1] }
     }
     memory.set(key, high)
     try { localStorage.setItem(KEY, JSON.stringify({ ...stored(), [key]: high.toString() })) } catch { /* private mode */ }
