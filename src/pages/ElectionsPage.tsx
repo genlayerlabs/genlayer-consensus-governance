@@ -32,7 +32,7 @@ function ElectionCard({ election, elections }: { election: ElectionSummary; elec
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
 
-  return <article className="panel">
+  return <article className="panel election-card">
     <div className="section-heading"><div>
       <div className="badges">
         <span className="pill">{ELECTION_STATE_NAMES[election.state] ?? election.state}</span>

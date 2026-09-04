@@ -79,6 +79,16 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 .action-card .approver-list { margin-top: 12px; }
 .action-card .role-note { margin-top: 12px; font-size: 11px; }
 .action-card .action-buttons { margin-top: 12px; }
+/* An election card stacks a badge row, a heading, a fact row, a candidate
+   list, a ballot field and six buttons. Every block set its own margin (or
+   none), so they ran together into one wall — the fact row sat directly on
+   the candidate panel and the ballot label on the empty state above it. */
+.election-card > * + * { margin-top: 16px; }
+.election-card .section-heading { margin-bottom: 0; }
+.election-card .header-facts { margin-top: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.election-card .form-grid { padding: 0; }
+.election-card .voter-list { margin-bottom: 0; }
+.election-card .empty.inline { margin-top: 0; }
 /* The directory address is the fastest way to fill "Delegate to" — typing a
    40-hex address by hand is where a delegation goes to the wrong account.
    Clicking it fills the field; the profile keeps its own link in the row so
