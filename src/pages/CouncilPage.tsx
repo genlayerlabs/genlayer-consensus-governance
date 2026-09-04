@@ -56,7 +56,6 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
         A council action is how the council speaks: members create one, approve it to the threshold, then anyone
         executes it. The council contract — not an individual member — is what the target sees as the caller.
       </p>
-      <div className="composer-split">
       <div className="form-grid">
         <label className="full">Action type
           <select value={actionType} onChange={(event) => setActionType(Number(event.target.value))}>
@@ -86,7 +85,6 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
           </small>
         </label>
       </div>
-      <div className="composer-side">
       <div className="encoded-preview"><small>Encoded actionData</small><code>{encoded.error ? '—' : encoded.data}</code></div>
       {encoded.error && <div className="error-box compact">{encoded.error}</div>}
       {!isMember && <div className="role-note"><ShieldAlert size={18} /><p><b>Not a sitting member</b>
@@ -100,8 +98,6 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
         disabled={!isMember || Boolean(encoded.error) || expiryTooFar || (needsProposal && !proposalId)}
         onConfirmed={onDone}
       >Create action</TransactionButton>
-      </div>
-      </div>
     </section>
   )
 }
@@ -134,6 +130,7 @@ export function CouncilPage() {
     {loading && !overview && <div className="loading-state">Loading the council directly from chain…</div>}
 
     {overview && <>
+      <div className="split-row">
       <section className="panel">
         <div className="section-heading"><div><p className="eyebrow">Composition</p><h2>Seats and thresholds</h2></div></div>
         <div className="header-facts">
@@ -162,7 +159,9 @@ export function CouncilPage() {
           Maintenance is a voting-power ledger state, not a council freeze. Governance timing is stopped, and the
           ledger is intentionally out of sync with staking while it lasts.</p></div>}
       </section>}
+      </div>
 
+      <div className="split-row">
       <section className="panel">
         <div className="section-heading"><div><p className="eyebrow">Roster</p><h2>Members</h2></div>
           <span>{overview.members.filter((m) => m.status !== 3).length} seated</span></div>
@@ -181,6 +180,7 @@ export function CouncilPage() {
       </section>
 
       <ActionComposer council={currentSet.council} isMember={isMember} onDone={() => void actions.refresh()} />
+      </div>
 
       <section className="panel">
         <div className="section-heading"><div><p className="eyebrow">On-chain action log</p><h2>Actions</h2></div>
