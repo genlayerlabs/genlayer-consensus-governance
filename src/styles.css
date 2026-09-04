@@ -295,6 +295,19 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .form-grid label small { color: var(--muted); font-size: 10px; }
 .form-grid textarea { min-height: 72px; resize: vertical; }
 .form-grid .checkbox { flex-direction: row; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 9px; }
+/* The composer ran full panel width, so a two-character Proposal ID got a
+   1,300px input. Fields go in a left column, the result of filling them —
+   encoded calldata, the eligibility note, the submit button — in a right one,
+   which also puts the button beside the fields instead of a scroll away. */
+.composer-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.composer-split .form-grid { grid-template-columns: 1fr; padding: 0; }
+.composer-side { display: flex; flex-direction: column; gap: 12px; }
+.composer-side .encoded-preview { display: block; margin: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; }
+.composer-side .encoded-preview code { white-space: pre-wrap; word-break: break-all; }
+.composer-side .button { width: 100%; }
+/* A label is a flex column, so text and its hint icon are separate items and
+   the icon dropped onto its own line. Keeping them in one span pairs them. */
+.label-text { display: flex; align-items: center; }
 .checkbox input { width: 18px; min-height: 18px; accent-color: var(--green); }
 .checkbox span { display: flex; flex-direction: column; gap: 3px; }
 .field-error { margin: 0; padding: 0 16px 14px; font-size: 11px; }
@@ -353,6 +366,7 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
   .class-grid { grid-template-columns: 1fr 1fr; }
   .class-rules { grid-template-columns: 1fr 1fr; }
   .form-grid { grid-template-columns: 1fr; }
+  .composer-split { grid-template-columns: 1fr; }
   .form-grid .full { grid-column: auto; }
   .payload-summary { grid-template-columns: 1fr; }
   .voter-list article { grid-template-columns: 8px 1fr auto; }
