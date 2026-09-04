@@ -504,6 +504,15 @@ export function operationBytes(operation: Operation): number {
   return (operation.args.length - 2) / 2
 }
 
+/** How long the node asked us to wait, or undefined if this is not a capacity
+ *  refusal. Zero means throttled without a stated delay. Callers use it to
+ *  retry; errorMessage uses it to describe. */
+export function throttleBackoffMs(error: unknown): number | undefined {
+  const raw = error instanceof Error ? error.message : String(error)
+  if (!/-?32005|gas rate limit|node is at capacity|retryAfterMs/i.test(raw)) return undefined
+  return Number(/"?retryAfterMs"?\s*:\s*(\d+)/.exec(raw)?.[1] ?? 0)
+}
+
 export function errorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error)
   const known: Record<string, string> = {
@@ -540,10 +549,9 @@ export function errorMessage(error: unknown): string {
   // as "the contract function reverted", so a node throttle arrives wearing the
   // costume of a governance refusal. Nothing was submitted and nothing is wrong
   // with the call — it is a retry, not a diagnosis.
-  const throttled = /-?32005|gas rate limit|node is at capacity|retryAfterMs/i.test(raw)
-  if (throttled) {
-    const after = /"?retryAfterMs"?\s*:\s*(\d+)/.exec(raw)?.[1]
-    const wait = after ? `${(Number(after) / 1000).toFixed(1)} seconds` : 'a moment'
+  const backoff = throttleBackoffMs(error)
+  if (backoff !== undefined) {
+    const wait = backoff > 0 ? `${(backoff / 1000).toFixed(1)} seconds` : 'a moment'
     return `The node is at capacity and refused the transaction — nothing was submitted, and this says nothing about whether the call would succeed. Try again in ${wait}.\n\n${raw.slice(0, 400)}`
   }
   const match = Object.keys(known).find((name) => raw.includes(name))
