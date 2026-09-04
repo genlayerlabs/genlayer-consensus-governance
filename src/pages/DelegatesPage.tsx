@@ -25,11 +25,12 @@ const HINTS = {
     'Not supported at launch: splitting weight across several delegates, delegation that passes through a delegate to their own delegate, and an owner overriding a delegate on a vote already cast.',
 }
 
-function MyDelegation({ onChanged }: { onChanged: () => void }) {
+function MyDelegation({ onChanged, target, setTarget }: {
+  onChanged: () => void; target: string; setTarget: (value: string) => void
+}) {
   const { currentSet } = useContracts()
   const { address, isConnected } = useWallet()
   const { summary, error, refresh } = useMyDelegation()
-  const [target, setTarget] = useState('')
   const now = BigInt(Math.floor(Date.now() / 1000))
 
   if (!isConnected) {
@@ -69,7 +70,7 @@ function MyDelegation({ onChanged }: { onChanged: () => void }) {
 
     <div className="form-grid">
       <label className="full">Delegate to
-        <input value={target} onChange={(event) => setTarget(event.target.value)} placeholder="0x…" />
+        <input value={target} onChange={(event) => setTarget(event.target.value)} placeholder="0x… or pick one from the directory below" />
       </label>
     </div>
     <div className="action-buttons">
@@ -97,6 +98,7 @@ export function DelegatesPage() {
   // Excluded addresses can never vote or delegate, so they are noise by
   // default — the box is still there to show they exist.
   const [hideExcluded, setHideExcluded] = useState(true)
+  const [target, setTarget] = useState('')
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -123,7 +125,7 @@ export function DelegatesPage() {
     </div><Button variant="ghost" onClick={() => void directory.refresh()}><RefreshCw size={15} /> Refresh</Button></div>
 
     <section className="panel">
-      <MyDelegation onChanged={() => void directory.refresh()} />
+      <MyDelegation onChanged={() => void directory.refresh()} target={target} setTarget={setTarget} />
 
       <div className="panel-split" />
       <div className="section-heading"><div><p className="eyebrow">Directory</p><h2>Delegates</h2></div>
@@ -143,7 +145,8 @@ export function DelegatesPage() {
 
       <div className="voter-list">{visible.map((entry) => <article key={entry.address}>
         <span className={`vote-dot support-${entry.excluded ? 0 : entry.delegatedAway ? 2 : 1}`} />
-        <Link to={`/address/${entry.address}`}>{shortAddress(entry.address)}</Link>
+        <button type="button" className="pick-address" title="Use as delegate"
+          onClick={() => setTarget(entry.address)}>{shortAddress(entry.address)}</button>
         <b>{formatGen(entry.votingPower)} GEN</b>
         <span>{total > 0n ? `${((Number(entry.votingPower) / Number(total)) * 100).toFixed(1)}% of observed` : '—'}</span>
         <span>{entry.delegators.length} delegator{entry.delegators.length === 1 ? '' : 's'}</span>
@@ -152,8 +155,10 @@ export function DelegatesPage() {
           {entry.isCouncilMember && ' · Security Council'}
           {entry.controller && ` · controlled by ${shortAddress(entry.controller)}`}
         </p>
-        <a className="tx-link" href={explorerAddress(entry.address)} target="_blank" rel="noreferrer">
-          View on explorer <ExternalLink size={12} /></a>
+        <span className="row-links">
+          <Link to={`/address/${entry.address}`}>Profile</Link>
+          <a href={explorerAddress(entry.address)} target="_blank" rel="noreferrer">Explorer <ExternalLink size={12} /></a>
+        </span>
       </article>)}
       {!directory.loading && visible.length === 0 && <div className="empty inline">
         <p>No addresses matched.</p></div>}
