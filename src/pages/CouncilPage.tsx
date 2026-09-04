@@ -51,7 +51,8 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
 
   return (
     <section className="panel">
-      <div className="section-heading"><div><p className="eyebrow">Council action</p><h2>Create an action</h2></div></div>
+      <div className="section-heading"><div><p className="eyebrow">Council action</p><h2>Create an action</h2></div>
+        {!isMember && <span className="role-note compact"><ShieldAlert size={16} />Not a sitting member</span>}</div>
       <p className="hint">
         A council action is how the council speaks: members create one, approve it to the threshold, then anyone
         executes it. The council contract — not an individual member — is what the target sees as the caller.
@@ -85,11 +86,7 @@ function ActionComposer({ council, isMember, onDone }: { council?: `0x${string}`
           </small>
         </label>
       </div>
-      <div className="encoded-preview"><small>Encoded actionData</small><code>{encoded.error ? '—' : encoded.data}</code></div>
       {encoded.error && <div className="error-box compact">{encoded.error}</div>}
-      {!isMember && <div className="role-note"><ShieldAlert size={18} /><p><b>Not a sitting member</b>
-        createAction and approveAction require a seat with status Active. This account does not have one, so the
-        transaction would revert.</p></div>}
       <TransactionButton
         address={council}
         abi={SecurityCouncilABI as never}
