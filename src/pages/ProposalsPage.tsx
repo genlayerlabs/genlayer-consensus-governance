@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Plus, Search } from 'lucide-react'
+import { ArrowRight, Ban, Plus, Search, Trophy } from 'lucide-react'
 import { useWallet } from '@/config/WalletContext'
 import { useContracts } from '@/config/ContractsContext'
 import { useProposals } from '@/hooks/useProposals'
-import { CLASS_NAMES, formatDate, formatGen, formatPercent, proposalNextAction, STATE_NAMES, SUPPORT_NAMES, shortAddress, voteChecks } from '@/lib/governance'
+import { CLASS_NAMES, formatDate, formatGen, formatPercent, proposalNextAction, STATE_NAMES, SUPPORT_NAMES, shortAddress, voteChecks, voteVerdict } from '@/lib/governance'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/Button'
 
@@ -42,8 +42,9 @@ export function ProposalsPage() {
         {visible.map((proposal) => {
           const turnout = proposal.votes.for + proposal.votes.against + proposal.votes.abstain
           const checks = voteChecks(proposal.votes, proposal.rules, proposal.ges)
+          const verdict = voteVerdict(proposal.state, proposal.votes, checks)
           return <Link className="proposal-card" to={`/proposals/${proposal.core.id}`} key={proposal.core.id.toString()}>
-            <div className="proposal-primary"><div className="badges"><StatusBadge state={proposal.state} /><span className="pill">{CLASS_NAMES[proposal.core.classId] ?? `Class ${proposal.core.classId}`}</span><span className="pill">{proposal.operations.length ? 'Executable' : 'RFC'}</span></div><h2>{proposal.title}</h2><p>GLIP #{proposal.core.id} · {shortAddress(proposal.core.proposer)} · Created {formatDate(proposal.core.creationTime)}</p><p className="proposal-dates">Voting opens {formatDate(proposal.voteStart)} · Ends {formatDate(proposal.voteEnd)}</p></div>
+            <div className="proposal-primary"><div className="badges"><StatusBadge state={proposal.state} /><span className="pill">{CLASS_NAMES[proposal.core.classId] ?? `Class ${proposal.core.classId}`}</span><span className="pill">{proposal.operations.length ? 'Executable' : 'RFC'}</span>{verdict.final && <span className={`pill verdict-pill verdict-${verdict.outcome}`}>{verdict.outcome === 'passed' ? <Trophy size={12} /> : <Ban size={12} />} {verdict.headline}</span>}</div><h2>{proposal.title}</h2><p>GLIP #{proposal.core.id} · {shortAddress(proposal.core.proposer)} · Created {formatDate(proposal.core.creationTime)}</p><p className="proposal-dates">Voting opens {formatDate(proposal.voteStart)} · Ends {formatDate(proposal.voteEnd)}</p></div>
             <div className="proposal-metrics"><span><small>For</small>{formatGen(proposal.votes.for)} GEN</span><span><small>Against</small>{formatGen(proposal.votes.against)} GEN</span><span><small>Quorum</small>{formatPercent(turnout, checks.quorumRequired)}</span>{proposal.connectedVote && <span><small>Your vote</small>{proposal.connectedVote.hasVoted ? `${proposal.connectedVote.support === undefined ? 'Voted' : SUPPORT_NAMES[proposal.connectedVote.support]} · ${formatGen(proposal.connectedVote.weight)} GEN` : 'Not voted'}</span>}<span className="next-action"><small>Next action</small>{proposalNextAction(proposal.state, proposal.core.retryAllowed)}</span><ArrowRight size={20} /></div>
           </Link>
         })}

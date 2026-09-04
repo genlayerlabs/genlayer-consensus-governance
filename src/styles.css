@@ -48,6 +48,10 @@ footer { display: flex; justify-content: space-between; padding: 24px 32px; bord
 .account-summary > span, .account-summary > div > span:last-child { display: flex; flex-direction: column; gap: 2px; }
 .account-summary small { color: var(--muted); font-size: 11px; }
 .account-summary b { font-size: 13px; font-weight: 600; }
+.verdict-pill { display: inline-flex; align-items: center; gap: 5px; }
+.verdict-pill.verdict-passed { color: var(--green); background: var(--green-dark); }
+.verdict-pill.verdict-defeated { color: #ff6b6b; background: rgba(255, 107, 107, .12); }
+
 .verdict { display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 2px 13px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--line); border-left-width: 3px; border-radius: 10px; background: rgba(255,255,255,.02); }
 .verdict-icon { grid-row: 1 / span 3; align-self: center; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; }
 .verdict b { grid-column: 2; font-size: 17px; }
