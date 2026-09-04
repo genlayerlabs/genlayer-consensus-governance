@@ -5,7 +5,7 @@ import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
 import { ArrowLeft, Ban, Check, Circle, ExternalLink, Hourglass, RefreshCw, ShieldAlert, Trophy, Vote } from 'lucide-react'
 import { useWallet } from '@/config/WalletContext'
-import { decodeAbiParameters, toFunctionSelector } from 'viem'
+import { decodeAbiParameters, keccak256, stringToHex, toFunctionSelector } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import GovernanceVotingPowerABI from '@/abi/GovernanceVotingPower.json'
 import GovernanceClassRegistryABI from '@/abi/GovernanceClassRegistry.json'
@@ -19,7 +19,7 @@ import { InfoHint } from '@/components/InfoHint'
 import { useProposal } from '@/hooks/useProposal'
 import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
-import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, preserveAlignedBlocks, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, voteChecks, voteVerdict } from '@/lib/governance'
+import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, preserveAlignedBlocks, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, VETO_GROUNDS, voteChecks, voteVerdict, ZERO_HASH } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 import { Button } from '@/components/Button'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -97,6 +97,8 @@ export function ProposalPage() {
   const [voterFilter, setVoterFilter] = useState('all')
   // '' = the connected EOA; otherwise the validator wallet to vote THROUGH
   const [voteAs, setVoteAs] = useState('')
+  const [vetoGround, setVetoGround] = useState(0)
+  const [vetoRationale, setVetoRationale] = useState('')
 
   // Hooks must run before the early returns below, so this sits with the other
   // hooks rather than beside the derived values that consume it.
@@ -198,8 +200,37 @@ export function ProposalPage() {
         {(proposal.state === 2 || proposal.state === 3) && <TransactionButton address={voting} functionName="settle" args={[id]} onConfirmed={refresh}>Settle proposal</TransactionButton>}
         {(proposal.state === 8 || (proposal.state === 10 && proposal.core.retryAllowed)) && <TransactionButton address={voting} functionName="execute" args={[id]} onConfirmed={refresh}>{proposal.state === 10 ? 'Retry execution' : 'Execute proposal'}</TransactionButton>}
         {proposal.state === 11 && <TransactionButton address={voting} functionName="expire" args={[id]} onConfirmed={refresh}>Record expiry</TransactionButton>}
-        {proposal.state === 4 && <div className="role-note"><ShieldAlert size={18} /><p><b>GLF veto window</b>Veto and extension calls are role-gated. This contract does not expose enumerable GLF membership, so the POC will not claim authorization it cannot verify.</p></div>}
-        {proposal.state === 6 && <div className="role-note"><ShieldAlert size={18} /><p><b>Risk Review</b>Approval is restricted to the Security Council contract or GLF signer. Dedicated council workflows are Phase 2.</p></div>}
+        {proposal.state === 4 && <div className="glf-actions">
+          <div className="role-note"><ShieldAlert size={18} /><p><b>GLF veto window</b>
+            Only the GLF veto signer may veto, and only two distinct GLF members may extend. The contract exposes
+            no getter for either role, so these are offered to everyone and authorisation is enforced on-chain —
+            a wrong account gets a plain-language refusal rather than a hidden button.</p></div>
+          <label>Veto ground
+            <select value={vetoGround} onChange={(event) => setVetoGround(Number(event.target.value))}>
+              {VETO_GROUNDS.map((ground, index) => <option key={ground} value={index}>{index} · {ground}</option>)}
+            </select>
+          </label>
+          <label>Rationale<InfoHint text="Only its keccak hash goes on-chain, committing to a rationale published within 72 hours. A veto cannot be recorded without one, and a ground can never be reused on the same proposal." />
+            <textarea value={vetoRationale} onChange={(event) => setVetoRationale(event.target.value)} placeholder="Why is this being vetoed?" />
+          </label>
+          <TransactionButton
+            address={voting} functionName="veto" variant="danger"
+            args={[id, vetoGround, vetoRationale ? keccak256(stringToHex(vetoRationale)) : ZERO_HASH]}
+            disabled={!vetoRationale.trim()} onConfirmed={refresh}
+          >Veto proposal</TransactionButton>
+          <TransactionButton address={voting} functionName="extendVetoWindow" args={[id]} variant="secondary" onConfirmed={refresh}>
+            Extend veto window
+          </TransactionButton>
+        </div>}
+        {proposal.state === 6 && <div className="glf-actions">
+          <div className="role-note"><ShieldAlert size={18} /><p><b>Risk Review</b>
+            Either the GLF signer or the Security Council may approve. The GLF signs alone but sets the ETA a full
+            review window out; the council needs its standard threshold yet executes sooner. Council approval is
+            raised as an action on the <Link to="/council">Security Council</Link> page.</p></div>
+          <TransactionButton address={voting} functionName="approveRiskReview" args={[id]} onConfirmed={refresh}>
+            <Check size={16} /> Approve Risk Review
+          </TransactionButton>
+        </div>}
         <div className="proposal-settings"><span><small>Class timelock</small>{formatDuration(proposal.core.classTimelock)}</span><span><small>Retry allowed</small>{proposal.core.retryAllowed ? 'Yes' : 'No'}</span><span><small>Risk Review</small>{proposal.rules.requiresRiskReview ? 'Required' : 'Not required'}</span><span><small>Late quorum window</small>{formatDuration(proposal.rules.lateQuorumWindow)}</span></div>
       </section>
     </aside></div>

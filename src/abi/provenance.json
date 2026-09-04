@@ -2,5 +2,9 @@
   "repository": "genlayerlabs/genlayer-consensus",
   "pullRequest": 1553,
   "commit": "c592217870ea964b9fd7511253f8c498df9fae52",
-  "note": "Generated contract ABIs vendored for a deterministic static build. Refresh when the dependency cut changes."
+  "note": "Generated contract ABIs vendored for a deterministic static build. Refresh when the dependency cut changes.",
+  "additions": {
+    "SecurityCouncil.json": "Added for CON-862. Extracted from the same working tree at 9a7a24235. That tree carries the deployment_gov3 testnet timing overrides, which change constant VALUES inside function bodies only — no function, event or error signature differs from upstream, so the ABI is interchangeable.",
+    "GovernanceCouncilElections.json": "Added for CON-862, same extraction and the same signature-identity note."
+  }
 }
