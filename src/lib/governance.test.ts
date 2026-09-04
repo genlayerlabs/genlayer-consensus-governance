@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { descriptionHash, encodeOperation, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
+import { descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -25,6 +25,15 @@ describe('governance helpers', () => {
 
   it('formats large GEN values without unsafe Number conversion', () => {
     expect(formatGen(parseEther('462000000.125'), 3)).toBe('462,000,000.125')
+  })
+
+  it('names the timezone so a shared deadline is unambiguous', () => {
+    // The zone marker is locale-dependent (GMT-3, UTC, PST…), so assert that
+    // one is present rather than pinning a value the CI box would not share.
+    const formatted = formatDate(1_788_531_754)
+    expect(formatted).toMatch(/\d/)
+    expect(formatted).toMatch(/GMT|UTC|[A-Z]{2,5}$/)
+    expect(formatDate(0)).toBe('—')
   })
 
   it('states an explicit verdict, including the cases a rule list hides', () => {
