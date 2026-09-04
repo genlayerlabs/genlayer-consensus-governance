@@ -139,7 +139,13 @@ input:hover, textarea:hover, select:hover { border-color: #3a4d48; }
 .proposal-primary .proposal-dates { margin-top: 5px; color: #70817c; font-size: 10px; }
 .proposal-metrics { display: flex; align-items: center; gap: 24px; }
 .proposal-metrics > span { display: flex; flex-direction: column; min-width: 86px; font-size: 12px; }
-.proposal-metrics small, .header-facts small, .tally small, .class-rules small, .proposal-settings small, .your-power small, .payload-summary small, .contract-pin small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
+/* These labels sit in a column above their value, and many carry an InfoHint.
+   The hint is an inline-flex box with vertical-align: middle, so as an INLINE
+   child it stretched the label's line box taller than a plain-text label —
+   every value under a hinted label dropped a few pixels out of line with its
+   neighbours. Making the label itself a flex row takes the icon out of the
+   line box entirely, so hinted and unhinted labels are the same height. */
+.proposal-metrics small, .header-facts small, .tally small, .class-rules small, .proposal-settings small, .your-power small, .payload-summary small, .contract-pin small { display: flex; align-items: center; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; margin-bottom: 5px; }
 .proposal-metrics .next-action { max-width: 145px; color: var(--green); }
 .load-more { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; padding: 26px; }
 .load-more p { margin: 0; }
