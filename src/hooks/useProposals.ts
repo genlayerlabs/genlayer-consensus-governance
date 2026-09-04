@@ -15,10 +15,6 @@ import type { ContractSet, ProposalSummary } from '@/lib/types'
 
 const RANGE = 100_000n
 
-function eventNamed(name: string) {
-  return (GovernanceVotingABI as any).find((entry: any) => entry.type === 'event' && entry.name === name)
-}
-
 function normalizeSet(value: any): ContractSet {
   return {
     voting: value.voting, votingPower: value.votingPower, gesRegistry: value.gesRegistry,
@@ -56,7 +52,9 @@ export async function fetchProposal(voting: Address, id: bigint, account?: Addre
     ])
     let support: number | undefined
     if (hasVoted) {
-      const voteLogs = await publicClient.getLogs({ address: voting, event: eventNamed('VoteCast'), args: { voter: account, proposalId: id }, fromBlock: creationLog?.blockNumber ?? deploymentConfig.deploymentStartBlock, toBlock: 'latest' } as any)
+      // Paged: this span is unbounded (proposal creation → head) and a raw
+      // getLogs over it is refused once it exceeds the RPC's block-range cap.
+      const voteLogs = await scanLogs({ address: voting, abi: GovernanceVotingABI as any, eventName: 'VoteCast' as any, args: { voter: account, proposalId: id }, fromBlock: creationLog?.blockNumber ?? deploymentConfig.deploymentStartBlock })
       support = voteLogs.length ? Number((voteLogs.at(-1) as any).args.support) : undefined
     }
     connectedVote = { hasVoted, weight, support }
@@ -96,7 +94,9 @@ export function useProposals() {
         const candidate = to >= RANGE ? to - RANGE + 1n : 0n
         const from = candidate < deploymentConfig.deploymentStartBlock ? deploymentConfig.deploymentStartBlock : candidate
         setProgress(`Scanning blocks ${from.toLocaleString()}–${to.toLocaleString()}`)
-        found = await publicClient.getLogs({ address: voting, event: eventNamed('ProposalCreated'), fromBlock: from, toBlock: to } as any)
+        // RANGE is the per-click LOOK-BACK window, not one RPC request:
+        // scanLogs pages it into cap-sized requests internally.
+        found = await scanLogs({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, fromBlock: from, toBlock: to })
         setCursor(from > deploymentConfig.deploymentStartBlock ? from - 1n : -1n)
         if (from === deploymentConfig.deploymentStartBlock) break
         to = from - 1n

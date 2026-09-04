@@ -17,8 +17,11 @@ export async function scanLogs(params: {
 }) {
   const head = params.toBlock ?? await publicClient.getBlockNumber()
   const floor = params.fromBlock ?? 0n
+  const maxChunk = deploymentConfig.maxBlockRange
   let from = floor
-  let chunk = params.initialChunk ?? 50_000n
+  // Start AT the cap, never above it: the previous 50k default spent three
+  // failed requests backing off to a legal width on every scan.
+  let chunk = params.initialChunk && params.initialChunk < maxChunk ? params.initialChunk : maxChunk
   let requests = 0
   const logs: any[] = []
   while (from <= head) {
@@ -35,7 +38,9 @@ export async function scanLogs(params: {
       params.onPage?.(page)
       from = to + 1n
       requests += 1
-      if (chunk < 100_000n) chunk *= 2n
+      // Grow back after a backoff, but never past the RPC's ceiling —
+      // unclamped doubling re-failed every other page.
+      if (chunk < maxChunk) chunk = chunk * 2n > maxChunk ? maxChunk : chunk * 2n
       params.onProgress?.({ from, to, head, requests })
     } catch (error) {
       if (chunk <= 500n) throw error

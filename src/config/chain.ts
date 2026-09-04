@@ -7,6 +7,12 @@ export const deploymentConfig = {
   explorerUrl: import.meta.env.VITE_EXPLORER_URL ?? 'https://explorer.testnet-chain.genlayer.com',
   addressManager: import.meta.env.VITE_ADDRESS_MANAGER ?? '',
   deploymentStartBlock: BigInt(import.meta.env.VITE_DEPLOYMENT_START_BLOCK ?? '0'),
+  // Largest eth_getLogs window the RPC accepts. The GenLayer testnet node
+  // rejects anything wider with
+  //   {"code":-32602,"message":"query exceeds max block range 10000"}
+  // so EVERY getLogs call must be paged at or below this. Override per
+  // endpoint with VITE_MAX_BLOCK_RANGE.
+  maxBlockRange: BigInt(import.meta.env.VITE_MAX_BLOCK_RANGE ?? '10000'),
 } as const
 
 export const genlayerTestnet = defineChain({
