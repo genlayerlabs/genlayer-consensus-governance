@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { Address } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import GovernanceGESRegistryABI from '@/abi/GovernanceGESRegistry.json'
@@ -9,11 +9,13 @@ import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { normalizeCore, normalizePostVote, normalizeRules, normalizeVotes, titleFromDescription } from '@/lib/governance'
-import { cacheableHead, readCache, writeCache } from '@/lib/logCache'
+import { readCache, writeCache } from '@/lib/logCache'
 import { findLatestLogBackwards, scanLogs } from '@/lib/rpc'
 import type { ContractSet, ProposalSummary } from '@/lib/types'
 
-const RANGE = 100_000n
+const PROBE_BATCH = 8
+/** A guard, not a limit: stops a runaway loop if state() ever stops reverting. */
+const MAX_PROPOSALS = 512
 
 function normalizeSet(value: any): ContractSet {
   return {
@@ -113,101 +115,62 @@ export function useProposals() {
   const { voting } = useContracts()
   const { address } = useWallet()
   const [proposals, setProposals] = useState<ProposalSummary[]>([])
-  const [cursor, setCursor] = useState<bigint>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
   const [progress, setProgress] = useState('')
-  const loaded = useRef(new Set<string>())
-  /** highest block whose ProposalCreated logs are already indexed */
-  const indexedTo = useRef<bigint | undefined>(undefined)
-
-  useEffect(() => {
-    setProposals([]); setCursor(undefined); setError(undefined); loaded.current.clear(); indexedTo.current = undefined
-  }, [voting, address])
 
   /**
-   * Render the indexed proposals immediately, then look only for new ones.
+   * Enumerate ids instead of scanning for ProposalCreated.
    *
-   * ProposalCreated is append-only, so the ids seen before are still the ids
-   * now — only the tail can have grown. The per-proposal DATA is deliberately
-   * NOT cached: state, votes and post-vote fields change constantly, and they
-   * come from cheap readContract calls. It is the log scan that was expensive,
-   * and that is what the index removes.
+   * Ids are sequential from 1 and `state(id)` reverts UnknownProposal past the
+   * end, so walking upward until a gap yields the COMPLETE list for N+1 cheap
+   * eth_calls — no log range, no cap, no cursor, and nothing that can be
+   * missed. The old paged scan stopped at the first window that returned any
+   * logs, so a fresh visitor could see three proposals and not the fourth, and
+   * "Load more" then scanned older blocks that held nothing new.
+   *
+   * The creation log is still wanted per proposal — it carries the block the
+   * voters scan resumes from — but fetchProposal fetches that lazily, cached
+   * permanently per id, so it never gates the list.
    */
+  const load = useCallback(async () => {
+    if (!voting) { setProposals([]); return }
+    setLoading(true); setError(undefined)
+    try {
+      const ids: bigint[] = []
+      // Probed in batches so a long list costs a handful of round trips
+      // rather than one per proposal; the batch stops at the first gap.
+      for (let base = 1n; ; base += BigInt(PROBE_BATCH)) {
+        setProgress(`Reading proposals ${base}–${base + BigInt(PROBE_BATCH) - 1n}`)
+        const probes = await Promise.all(Array.from({ length: PROBE_BATCH }, (_unused, offset) =>
+          publicClient.readContract({ address: voting, abi: GovernanceVotingABI as any, functionName: 'state', args: [base + BigInt(offset)] } as never)
+            .then(() => true).catch(() => false)))
+        const upTo = probes.indexOf(false)
+        for (let offset = 0; offset < (upTo === -1 ? PROBE_BATCH : upTo); offset += 1) ids.push(base + BigInt(offset))
+        if (upTo !== -1) break
+        if (ids.length > MAX_PROPOSALS) break
+      }
+      setProgress(ids.length ? `Loading ${ids.length} proposal${ids.length === 1 ? '' : 's'}…` : '')
+      const hydrated = await Promise.all(ids.map((id) => fetchProposal(voting, id, address)))
+      setProposals(hydrated.sort((a, b) => (a.core.id === b.core.id ? 0 : a.core.id > b.core.id ? -1 : 1)))
+      rememberIndex(voting, hydrated)
+    } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
+    finally { setLoading(false); setProgress('') }
+  }, [voting, address])
+
+  // Render whatever a previous visit indexed, so the list is not blank while
+  // the ids are probed. Identity only — every number on the row is re-read.
   const loadIndexed = useCallback(async () => {
     if (!voting) return
     const index = readCache<any>('proposal-index', voting, 'all', (raw) => ({ ...raw, id: BigInt(raw.id), blockNumber: BigInt(raw.blockNumber) }))
     if (!index || index.records.length === 0) return
-    indexedTo.current = index.toBlock
-    setLoading(true)
     try {
-      const hydrated = await Promise.all(index.records.map((entry) => fetchProposal(voting, entry.id, address, entry)))
-      for (const entry of index.records) loaded.current.add(String(entry.id))
-      setProposals(hydrated.sort((a, b) => (a.core.id === b.core.id ? 0 : a.core.id > b.core.id ? -1 : 1)))
-    } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
-    finally { setLoading(false) }
+      const hydrated = await Promise.all(index.records.map((entry: any) => fetchProposal(voting, entry.id, address, entry)))
+      setProposals((current) => (current.length ? current : hydrated.sort((a, b) => (a.core.id === b.core.id ? 0 : a.core.id > b.core.id ? -1 : 1))))
+    } catch { /* the authoritative load below replaces this anyway */ }
   }, [voting, address])
 
-  useEffect(() => { void loadIndexed() }, [loadIndexed])
+  useEffect(() => { void loadIndexed().then(() => load()) }, [loadIndexed, load])
 
-  const loadMore = useCallback(async () => {
-    if (!voting || loading) return
-    setLoading(true); setError(undefined)
-    try {
-      let to = cursor ?? await publicClient.getBlockNumber()
-      let pages = 0
-      let found: any[] = []
-      while (to >= deploymentConfig.deploymentStartBlock && pages < 8 && found.length === 0) {
-        const candidate = to >= RANGE ? to - RANGE + 1n : 0n
-        const from = candidate < deploymentConfig.deploymentStartBlock ? deploymentConfig.deploymentStartBlock : candidate
-        setProgress(`Scanning blocks ${from.toLocaleString()}–${to.toLocaleString()}`)
-        // RANGE is the per-click LOOK-BACK window, not one RPC request:
-        // scanLogs pages it into cap-sized requests internally.
-        found = await scanLogs({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, fromBlock: from, toBlock: to })
-        setCursor(from > deploymentConfig.deploymentStartBlock ? from - 1n : -1n)
-        if (from === deploymentConfig.deploymentStartBlock) break
-        to = from - 1n
-        pages += 1
-      }
-      const fresh = found.filter((log) => !loaded.current.has(String(log.args.id)))
-      fresh.forEach((log) => loaded.current.add(String(log.args.id)))
-      const hydrated = await Promise.all([...fresh].reverse().map((log) => fetchProposal(voting, log.args.id, address, log)))
-      setProposals((current) => [...current, ...hydrated])
-      rememberIndex(voting, hydrated)
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setLoading(false); setProgress('')
-    }
-  }, [voting, address, cursor, loading])
-
-  /**
-   * Look only for proposals created since the index was written.
-   *
-   * The expensive part was never reading a proposal — that is a handful of
-   * readContract calls — it was re-walking history for ProposalCreated on
-   * every visit. Indexed ids are rendered first; this covers the tail.
-   */
-  const scanTail = useCallback(async () => {
-    if (!voting || indexedTo.current === undefined) return
-    const from = indexedTo.current + 1n
-    try {
-      const head = await publicClient.getBlockNumber()
-      if (from > head) return
-      const found = await scanLogs({ address: voting, abi: GovernanceVotingABI as any, eventName: 'ProposalCreated' as any, fromBlock: from, toBlock: head })
-      const fresh = found.filter((log: any) => !loaded.current.has(String(log.args.id)))
-      if (fresh.length === 0) {
-        rememberIndex(voting, [], cacheableHead(head))
-        return
-      }
-      fresh.forEach((log: any) => loaded.current.add(String(log.args.id)))
-      const hydrated = await Promise.all([...fresh].reverse().map((log: any) => fetchProposal(voting, log.args.id, address, log)))
-      setProposals((current) => [...hydrated, ...current])
-      rememberIndex(voting, hydrated, cacheableHead(head))
-    } catch { /* the indexed list is already on screen; a failed tail scan is not fatal */ }
-  }, [voting, address])
-
-  useEffect(() => { void scanTail() }, [scanTail])
-  useEffect(() => { if (voting && proposals.length === 0 && cursor === undefined) void loadMore() }, [voting, proposals.length, cursor, loadMore])
-  return { proposals, loading, error, progress, loadMore, hasMore: cursor === undefined || cursor >= deploymentConfig.deploymentStartBlock }
+  return { proposals, loading, error, progress, refresh: load }
 }
