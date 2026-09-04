@@ -20,7 +20,7 @@ import { useCanCall } from '@/hooks/useCanCall'
 import { useProposal } from '@/hooks/useProposal'
 import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
-import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, preserveAlignedBlocks, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, VETO_GROUNDS, voteChecks, voteVerdict, ZERO_HASH } from '@/lib/governance'
+import { byteLength, CLASS_NAMES, descriptionHash, formatDate, formatDuration, formatGen, formatPercent, payloadHash, preserveAlignedBlocks, PROBE_HASH, proposalNextAction, shortAddress, STATE_NAMES, SUPPORT_NAMES, VETO_GROUNDS, voteChecks, voteVerdict, ZERO_HASH } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 import { Button } from '@/components/Button'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -94,6 +94,18 @@ export function ProposalPage() {
   const { proposal, loading, error, refresh } = useProposal(id)
   // Probe only while a review is actually open: outside state 6 the call
   // reverts WrongState for everyone, which would read as "not the signer".
+  // Same unreadable-role problem as Risk Review, twice over: veto is the GLF
+  // SIGNER, extendVetoWindow is any GLF MEMBER, and neither set has a getter.
+  // veto() rejects a zero rationale hash BEFORE it checks the caller, so the
+  // probe has to carry a non-zero one — this hash is never submitted.
+  const { allowed: canVeto } = useCanCall({
+    address: voting, abi: GovernanceVotingABI as never, functionName: 'veto',
+    args: [id, vetoGround, PROBE_HASH], account: address, enabled: proposal?.state === 4,
+  })
+  const { allowed: canExtend } = useCanCall({
+    address: voting, abi: GovernanceVotingABI as never, functionName: 'extendVetoWindow',
+    args: [id], account: address, enabled: proposal?.state === 4,
+  })
   const { allowed: isGlfSigner } = useCanCall({
     address: voting, abi: GovernanceVotingABI as never, functionName: 'approveRiskReview',
     args: [id], account: address, enabled: proposal?.state === 6,
@@ -208,26 +220,33 @@ export function ProposalPage() {
         {(proposal.state === 8 || (proposal.state === 10 && proposal.core.retryAllowed)) && <TransactionButton address={voting} functionName="execute" args={[id]} onConfirmed={refresh}>{proposal.state === 10 ? 'Retry execution' : 'Execute proposal'}</TransactionButton>}
         {proposal.state === 11 && <TransactionButton address={voting} functionName="expire" args={[id]} onConfirmed={refresh}>Record expiry</TransactionButton>}
         {proposal.state === 4 && <div className="glf-actions">
-          <div className="role-note"><ShieldAlert size={18} /><p><b>GLF veto window</b>
-            Only the GLF veto signer may veto, and only two distinct GLF members may extend. The contract exposes
-            no getter for either role, so these are offered to everyone and authorisation is enforced on-chain —
-            a wrong account gets a plain-language refusal rather than a hidden button.</p></div>
-          <label>Veto ground
+          {/* Each half is shown when its own probe allows it, or when the probe
+              could not answer. Both refused means the account holds neither
+              role, and the note says so instead of offering a button that
+              would revert. */}
+          {canVeto === false && canExtend === false
+            ? <div className="role-note"><ShieldAlert size={18} /><p><b>GLF veto window</b>
+              This account is neither the GLF veto signer nor a GLF member, so it can neither veto this proposal
+              nor extend the window. Both roles are unreadable — the contract has no getter for either — so this
+              is the result of simulating the calls from this account, not a membership list.</p></div>
+            : <>
+          {canVeto !== false && <><label>Veto ground
             <select value={vetoGround} onChange={(event) => setVetoGround(Number(event.target.value))}>
               {VETO_GROUNDS.map((ground, index) => <option key={ground} value={index}>{index} · {ground}</option>)}
             </select>
           </label>
           <label><span className="label-text">Rationale<InfoHint text="Only its keccak hash goes on-chain, committing to a rationale published within 72 hours. A veto cannot be recorded without one, and a ground can never be reused on the same proposal." /></span>
             <textarea value={vetoRationale} onChange={(event) => setVetoRationale(event.target.value)} placeholder="Why is this being vetoed?" />
-          </label>
-          <TransactionButton
+          </label></>}
+          {canVeto !== false && <TransactionButton
             address={voting} functionName="veto" variant="danger"
             args={[id, vetoGround, vetoRationale ? keccak256(stringToHex(vetoRationale)) : ZERO_HASH]}
             disabled={!vetoRationale.trim()} onConfirmed={refresh}
-          >Veto proposal</TransactionButton>
-          <TransactionButton address={voting} functionName="extendVetoWindow" args={[id]} variant="secondary" onConfirmed={refresh}>
+          >Veto proposal</TransactionButton>}
+          {canExtend !== false && <TransactionButton address={voting} functionName="extendVetoWindow" args={[id]} variant="secondary" onConfirmed={refresh}>
             Extend veto window
-          </TransactionButton>
+          </TransactionButton>}
+            </>}
         </div>}
         {proposal.state === 6 && <div className="glf-actions">
           {/* The GLF signer is unreadable — setGLFVetoSigner writes a private

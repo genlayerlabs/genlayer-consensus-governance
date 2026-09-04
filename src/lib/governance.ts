@@ -22,6 +22,11 @@ export const STATE_NAMES = ['Pending', 'Active', 'Defeated', 'Succeeded', 'Veto 
 export const SUPPORT_NAMES = ['Against', 'For', 'Abstain']
 export const VETO_GROUNDS = ['Legal / regulatory / fiduciary', 'Charter violation', 'Outside GLF mandate', 'Non-mitigable Foundation risk']
 
+/** Stand-in rationale hash for permission probes only, never submitted.
+ *  `veto` rejects a zero hash with EmptyRationale BEFORE it checks the caller,
+ *  so probing with ZERO_HASH would refuse the real signer too. */
+export const PROBE_HASH = '0x1111111111111111111111111111111111111111111111111111111111111111' as const
+
 /* Which proposal states a council action can actually be created against.
    Three of the four are enforced where the action EXECUTES, not where it is
    created — designateSpam and raiseClass demand Pending, voidProposal demands
