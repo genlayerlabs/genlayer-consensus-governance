@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
-import { ArrowLeft, Check, Circle, ExternalLink, RefreshCw, ShieldAlert, Vote } from 'lucide-react'
+import { ArrowLeft, Ban, Check, Circle, ExternalLink, Hourglass, RefreshCw, ShieldAlert, Trophy, Vote } from 'lucide-react'
 import { useWallet } from '@/config/WalletContext'
 import { decodeAbiParameters, toFunctionSelector } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
@@ -123,6 +123,7 @@ export function ProposalPage() {
             Showing only the components leaves the reader to do the boolean
             algebra, and an executable proposal should never be ambiguous. */}
         <div className={`verdict verdict-${verdict.outcome}`}>
+          <span className="verdict-icon">{verdict.outcome === 'passed' ? <Trophy size={20} /> : verdict.outcome === 'defeated' ? <Ban size={20} /> : <Hourglass size={20} />}</span>
           <b>{verdict.headline}</b>
           <small>{verdict.final ? 'Final — settled on-chain' : 'Provisional — voting is still open'}</small>
           <p>{verdict.reason}</p>
