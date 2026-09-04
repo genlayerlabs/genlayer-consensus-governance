@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { ACTION_TYPE_NAMES, actionThreshold, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
+import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -61,6 +61,21 @@ describe('governance helpers', () => {
     expect(actionThreshold(4, t)).toBe(7)             // EmergencyApprove → emergency
     expect(actionThreshold(5, t, 0)).toBe(5)          // soft freeze
     expect(actionThreshold(5, t, 1)).toBe(7)          // hard freeze — same type, different threshold
+  })
+
+  it('pins the election enums, which state() and ElectionStarted index into', () => {
+    // Scheduled is declared but state() never returns it, so index 1 is the
+    // first state actually observable — an off-by-one here mislabels everything.
+    expect(ELECTION_STATE_NAMES[0]).toBe('Scheduled')
+    expect(ELECTION_STATE_NAMES[1]).toBe('Nomination')
+    expect(ELECTION_STATE_NAMES[4]).toBe('Succeeded')
+    expect(ELECTION_STATE_NAMES[6]).toBe('Settled')
+    expect(ELECTION_KIND_NAMES[0]).toBe('Bootstrap')
+    expect(ELECTION_KIND_NAMES[4]).toBe('Runoff')
+    // Succeeded is transient and can still fail at settle, so its next action
+    // must not read as "won"
+    expect(electionNextAction(4)).toMatch(/settle/i)
+    expect(electionNextAction(5)).toMatch(/quorum/i)
   })
 
   it('names the timezone so a shared deadline is unambiguous', () => {

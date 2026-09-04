@@ -415,6 +415,34 @@ export function freezeKindOf(actionType: number, actionData: Hex): number | unde
   }
 }
 
+// ── Council elections (CON-862) ─────────────────────────────────────────────
+
+/** ElectionState, index = on-chain value. `Scheduled` is declared but state() never returns it. */
+export const ELECTION_STATE_NAMES = ['Scheduled', 'Nomination', 'Preparation', 'Voting', 'Succeeded', 'Failed', 'Settled']
+
+/** ElectionKind, index = on-chain value. */
+export const ELECTION_KIND_NAMES = ['Bootstrap', 'Cohort', 'Special', 'Recall', 'Runoff']
+
+/**
+ * What a given election state is waiting for, and who can do it.
+ *
+ * `Succeeded` is transient and derived — an election past its vote end reads
+ * Succeeded even when it will FAIL quorum at settle. Turnout, the effective
+ * quorum and the GES denominator are all unreadable, so the outcome genuinely
+ * cannot be predicted from views; settling is what decides it.
+ */
+export function electionNextAction(state: number): string {
+  return [
+    'Waiting to open',
+    'Nominate or endorse',
+    'Snapshot fixed — waiting for voting to open',
+    'Cast a limited-voting ballot',
+    'Settle to record the result',
+    'Quorum was not met — a retry opens at a lower bar',
+    'Complete',
+  ][state] ?? 'Inspect contract state'
+}
+
 export function proposalNextAction(state: number, retryAllowed = false): string {
   return [
     'Wait for voting to open', 'Vote before the deadline', 'Settle the defeated proposal',
