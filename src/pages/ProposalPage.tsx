@@ -94,18 +94,6 @@ export function ProposalPage() {
   const { proposal, loading, error, refresh } = useProposal(id)
   // Probe only while a review is actually open: outside state 6 the call
   // reverts WrongState for everyone, which would read as "not the signer".
-  // Same unreadable-role problem as Risk Review, twice over: veto is the GLF
-  // SIGNER, extendVetoWindow is any GLF MEMBER, and neither set has a getter.
-  // veto() rejects a zero rationale hash BEFORE it checks the caller, so the
-  // probe has to carry a non-zero one — this hash is never submitted.
-  const { allowed: canVeto } = useCanCall({
-    address: voting, abi: GovernanceVotingABI as never, functionName: 'veto',
-    args: [id, vetoGround, PROBE_HASH], account: address, enabled: proposal?.state === 4,
-  })
-  const { allowed: canExtend } = useCanCall({
-    address: voting, abi: GovernanceVotingABI as never, functionName: 'extendVetoWindow',
-    args: [id], account: address, enabled: proposal?.state === 4,
-  })
   const { allowed: isGlfSigner } = useCanCall({
     address: voting, abi: GovernanceVotingABI as never, functionName: 'approveRiskReview',
     args: [id], account: address, enabled: proposal?.state === 6,
@@ -118,6 +106,19 @@ export function ProposalPage() {
   const [voteAs, setVoteAs] = useState('')
   const [vetoGround, setVetoGround] = useState(0)
   const [vetoRationale, setVetoRationale] = useState('')
+
+  // Same unreadable-role problem as Risk Review, twice over: veto is the GLF
+  // SIGNER, extendVetoWindow is any GLF MEMBER, and neither set has a getter.
+  // veto() rejects a zero rationale hash BEFORE it checks the caller, so the
+  // probe has to carry a non-zero one — this hash is never submitted.
+  const { allowed: canVeto } = useCanCall({
+    address: voting, abi: GovernanceVotingABI as never, functionName: 'veto',
+    args: [id, vetoGround, PROBE_HASH], account: address, enabled: proposal?.state === 4,
+  })
+  const { allowed: canExtend } = useCanCall({
+    address: voting, abi: GovernanceVotingABI as never, functionName: 'extendVetoWindow',
+    args: [id], account: address, enabled: proposal?.state === 4,
+  })
 
   // Hooks must run before the early returns below, so this sits with the other
   // hooks rather than beside the derived values that consume it.
