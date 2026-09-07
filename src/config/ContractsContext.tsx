@@ -3,6 +3,7 @@ import { getAddress, isAddress, type Address, type Hex } from 'viem'
 import AddressManagerABI from '@/abi/AddressManager.json'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import GovernanceClockABI from '@/abi/GovernanceClock.json'
+import GovernanceABI from '@/abi/Governance.json'
 import { publicClient } from './clients'
 import { deploymentConfig } from './chain'
 import type { ContractSet } from '@/lib/types'
@@ -59,10 +60,21 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
     try {
       const bytecode = await publicClient.getBytecode({ address: addressManager })
       if (!bytecode) throw new Error('No contract is deployed at this AddressManager address.')
-      const [voting, votingPower, vestingFactoryKey] = await Promise.all(['GovernanceVoting', 'GovernanceVotingPower', 'VestingFactory'].map((key) =>
+      const [votingKey, votingPowerKey, vestingFactoryKey, governanceKey] = await Promise.all(['GovernanceVoting', 'GovernanceVotingPower', 'VestingFactory', 'Governance'].map((key) =>
         publicClient.readContract({ address: addressManager, abi: AddressManagerABI, functionName: 'getAddress', args: [key] }) as Promise<Address>,
       ))
-      if (voting === ZERO_ADDRESS || votingPower === ZERO_ADDRESS) throw new Error('This AddressManager does not contain the governance voting contracts.')
+      // A registry sealed under CON-833 (#1564) carries only the keys of its
+      // reviewed manifest, which lists the Governance executor but not
+      // GovernanceVoting. After the launch handshake the executor's owner IS
+      // the voting contract, so it is the entry point of last resort; the
+      // ContractSet check below confirms the executor really is that set's.
+      let voting = votingKey
+      let resolvedVia: 'key' | 'executor' = 'key'
+      if (voting === ZERO_ADDRESS && governanceKey !== ZERO_ADDRESS) {
+        const owner = await publicClient.readContract({ address: governanceKey, abi: GovernanceABI, functionName: 'owner' }).catch(() => ZERO_ADDRESS) as Address
+        if (owner !== ZERO_ADDRESS && await publicClient.getBytecode({ address: owner })) { voting = owner; resolvedVia = 'executor' }
+      }
+      if (voting === ZERO_ADDRESS) throw new Error('This AddressManager does not contain the governance voting contracts.')
       // Optional: getAddress answers zero for a key that was never set, and
       // a deployment without a registered factory simply has no vesting
       // identities to offer.
@@ -71,6 +83,9 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
       const setValue = await publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'contractSet', args: [currentContractsHash] })
       const currentSet = normalizeSet(setValue)
       if (currentSet.voting.toLowerCase() !== voting.toLowerCase()) throw new Error('The active ContractSet does not match the resolved GovernanceVoting contract.')
+      if (resolvedVia === 'executor' && currentSet.executor.toLowerCase() !== governanceKey.toLowerCase()) throw new Error('The Governance executor named by this AddressManager is not the executor of the active ContractSet.')
+      // the ledger comes from the pinned set when the registry omits its key
+      const votingPower = votingPowerKey !== ZERO_ADDRESS ? votingPowerKey : currentSet.votingPower
       const [stop, migrationActive] = await Promise.all([
         publicClient.readContract({ address: currentSet.clock, abi: GovernanceClockABI, functionName: 'stopState' }) as Promise<any>,
         publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'migrationInProgress' }) as Promise<boolean>,

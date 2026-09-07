@@ -58,7 +58,7 @@ Browser ── eth_call / eth_getLogs ──> configured RPC ──> governance 
    └──── injected wallet transactions ───────────────> configured chain
 ```
 
-The AddressManager is the only deployment entry point. The app resolves `GovernanceVoting`, obtains its current `contractsHash`, and verifies the active nine-address `ContractSet`. Each proposal's historical GES, voting power, and permission context is then resolved from its pinned set. Vendored ABIs make the static build deterministic; their source is recorded in [`src/abi/provenance.json`](src/abi/provenance.json).
+The AddressManager is the only deployment entry point. The app resolves `GovernanceVoting` (or, on a registry sealed under CON-833 whose manifest omits that key, the owner of the manifest-listed `Governance` executor, cross-checked against the active set's executor), obtains its current `contractsHash`, and verifies the active nine-address `ContractSet`. Each proposal's historical GES, voting power, and permission context is then resolved from its pinned set. Vendored ABIs make the static build deterministic; their source is recorded in [`src/abi/provenance.json`](src/abi/provenance.json).
 
 Views added after a deployment shipped are feature-detected (`src/lib/optionalRead.ts`): the view is tried first; a revert selects the log or probe fallback the UI has always had; a transport error keeps the fallback and is reported as "could not read", never as "not available on this deployment".
 
