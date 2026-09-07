@@ -543,7 +543,7 @@ export function errorMessage(error: unknown): string {
     BelowProposalThreshold: 'The account does not meet the proposal voting-power threshold.',
     // Council and GLF roles (CON-862). Neither GLF role has a getter, so these
     // refusals are the only way the UI can report that authorisation failed.
-    OnlyGLFSigner: 'Only the GLF veto signer may do this. The contract exposes no getter for that role, so the UI cannot check it in advance.',
+    OnlyGLFSigner: 'Only the GLF veto signer may do this.',
     OnlyGLFMember: 'Only a Charter-registered GLF member may extend the veto window, and it takes two distinct members.',
     EmptyRationale: 'A veto must commit to a rationale — the zero hash would leave it unauditable.',
     NotSitting: 'Creating or approving a council action requires a seat with status Active. An elected but unactivated seat cannot.',

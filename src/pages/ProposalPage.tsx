@@ -17,6 +17,7 @@ import ValidatorWalletABI from '@/abi/ValidatorWallet.json'
 import { useContracts } from '@/config/ContractsContext'
 import { InfoHint } from '@/components/InfoHint'
 import { useCanCall } from '@/hooks/useCanCall'
+import { useGlfRole } from '@/hooks/useGlfRole'
 import { useProposal } from '@/hooks/useProposal'
 import { useValidatorWallets } from '@/hooks/useValidatorWallets'
 import { useVoteRecords } from '@/hooks/useVoteRecords'
@@ -92,12 +93,19 @@ export function ProposalPage() {
   const { voting } = useContracts()
   const { isConnected, address } = useWallet()
   const { proposal, loading, error, refresh } = useProposal(id)
-  // Probe only while a review is actually open: outside state 6 the call
-  // reverts WrongState for everyone, which would read as "not the signer".
-  const { allowed: isGlfSigner } = useCanCall({
+  // The roles are read from glfVetoSigner()/glfMembers() where the deployment
+  // exposes them (CON-864). Where it does not, the account is probed by
+  // simulating the gated call — and only while a review is actually open:
+  // outside state 6 the call reverts WrongState for everyone, which would
+  // read as "not the signer".
+  const glf = useGlfRole(address)
+  const rolesReadable = glf.source === 'getter'
+  const probeRoles = glf.source === 'absent' || glf.source === 'unknown'
+  const { allowed: probedSigner } = useCanCall({
     address: voting, abi: GovernanceVotingABI as never, functionName: 'approveRiskReview',
-    args: [id], account: address, enabled: proposal?.state === 6,
+    args: [id], account: address, enabled: proposal?.state === 6 && probeRoles,
   })
+  const isGlfSigner = rolesReadable ? glf.isSigner : probedSigner
   const voters = useVoteRecords(voting, id, proposal?.blockNumber)
   const [support, setSupport] = useState(1)
   const [reason, setReason] = useState('')
@@ -107,18 +115,20 @@ export function ProposalPage() {
   const [vetoGround, setVetoGround] = useState(0)
   const [vetoRationale, setVetoRationale] = useState('')
 
-  // Same unreadable-role problem as Risk Review, twice over: veto is the GLF
-  // SIGNER, extendVetoWindow is any GLF MEMBER, and neither set has a getter.
+  // Same question as Risk Review, twice over: veto is the GLF SIGNER,
+  // extendVetoWindow is any GLF MEMBER. Without the getters both are probed;
   // veto() rejects a zero rationale hash BEFORE it checks the caller, so the
   // probe has to carry a non-zero one — this hash is never submitted.
-  const { allowed: canVeto } = useCanCall({
+  const { allowed: probedVeto } = useCanCall({
     address: voting, abi: GovernanceVotingABI as never, functionName: 'veto',
-    args: [id, vetoGround, PROBE_HASH], account: address, enabled: proposal?.state === 4,
+    args: [id, vetoGround, PROBE_HASH], account: address, enabled: proposal?.state === 4 && probeRoles,
   })
-  const { allowed: canExtend } = useCanCall({
+  const { allowed: probedExtend } = useCanCall({
     address: voting, abi: GovernanceVotingABI as never, functionName: 'extendVetoWindow',
-    args: [id], account: address, enabled: proposal?.state === 4,
+    args: [id], account: address, enabled: proposal?.state === 4 && probeRoles,
   })
+  const canVeto = rolesReadable ? glf.isSigner : probedVeto
+  const canExtend = rolesReadable ? glf.isMember : probedExtend
 
   // Hooks must run before the early returns below, so this sits with the other
   // hooks rather than beside the derived values that consume it.
@@ -221,15 +231,17 @@ export function ProposalPage() {
         {(proposal.state === 8 || (proposal.state === 10 && proposal.core.retryAllowed)) && <TransactionButton address={voting} functionName="execute" args={[id]} onConfirmed={refresh}>{proposal.state === 10 ? 'Retry execution' : 'Execute proposal'}</TransactionButton>}
         {proposal.state === 11 && <TransactionButton address={voting} functionName="expire" args={[id]} onConfirmed={refresh}>Record expiry</TransactionButton>}
         {proposal.state === 4 && <div className="glf-actions">
-          {/* Each half is shown when its own probe allows it, or when the probe
-              could not answer. Both refused means the account holds neither
-              role, and the note says so instead of offering a button that
-              would revert. */}
+          {/* Each half is shown when its role allows it, or when the role
+              could not be determined. Both refused means the account holds
+              neither role, and the note says so instead of offering a button
+              that would revert. */}
           {canVeto === false && canExtend === false
             ? <div className="role-note"><ShieldAlert size={18} /><p><b>GLF veto window</b>
               This account is neither the GLF veto signer nor a GLF member, so it can neither veto this proposal
-              nor extend the window. Both roles are unreadable — the contract has no getter for either — so this
-              is the result of simulating the calls from this account, not a membership list.</p></div>
+              nor extend the window.
+              {rolesReadable
+                ? <> The veto signer is <code>{shortAddress(glf.signer!)}</code>; membership is read from the contract.</>
+                : ' This deployment exposes no getter for either role, so this is the result of simulating the calls from this account, not a membership list.'}</p></div>
             : <>
           {canVeto !== false && <><label>Veto ground
             <select value={vetoGround} onChange={(event) => setVetoGround(Number(event.target.value))}>
@@ -253,13 +265,11 @@ export function ProposalPage() {
             </>}
         </div>}
         {proposal.state === 6 && <div className="glf-actions">
-          {/* The GLF signer is unreadable — setGLFVetoSigner writes a private
-              slot and emits nothing — so the account is probed by simulating
-              the call. Allowed: give the signer the button and nothing else,
-              since the council route is not theirs to take. Refused: no
-              button, and say where approval has to come from instead.
-              Unknown (wallet away, node unreachable) keeps both, because an
-              RPC failure must never look like a denial. */}
+          {/* Allowed: give the signer the button and nothing else, since the
+              council route is not theirs to take. Refused: no button, and say
+              where approval has to come from instead. Unknown (wallet away,
+              node unreachable, no getter and the probe failed) keeps both,
+              because an RPC failure must never look like a denial. */}
           {isGlfSigner === true
             ? <TransactionButton address={voting} functionName="approveRiskReview" args={[id]} onConfirmed={refresh}>
               <Check size={16} /> Approve Risk Review
@@ -269,6 +279,7 @@ export function ProposalPage() {
                 Either the GLF signer or the Security Council may approve. The GLF signs alone but sets the ETA a full
                 review window out; the council needs its standard threshold yet executes sooner. Council approval is
                 raised as an action on the <Link to="/council">Security Council</Link> page.
+                {rolesReadable && glf.signer && <> The GLF signer is <code>{shortAddress(glf.signer)}</code>.</>}
                 {isGlfSigner === false && ' This account is not the GLF signer, so its approval must come from the council.'}</p></div>
               {isGlfSigner === undefined && <TransactionButton address={voting} functionName="approveRiskReview" args={[id]} onConfirmed={refresh}>
                 <Check size={16} /> Approve Risk Review

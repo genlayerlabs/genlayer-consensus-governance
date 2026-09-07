@@ -8,7 +8,7 @@ Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlab
 
 ## Phase 1 — proposals ([CON-861](https://linear.app/genlayer-labs/issue/CON-861))
 
-- Browse every proposal, enumerated by walking ids upward until `state(id)` reverts `UnknownProposal` — complete without an indexer, and immune to the log-range cap that a scan is subject to.
+- Browse every proposal, enumerated by `proposalCount()` where the deployment exposes it and otherwise by walking ids upward until `state(id)` reverts `UnknownProposal` — complete without an indexer either way, and immune to the log-range cap that a scan is subject to.
 - Search, filter and sort proposals; a previous visit's index paints the list immediately while ids are re-read.
 - Inspect the complete on-chain description and ordered operation payload, with local commitment verification.
 - Understand For, Against, Abstain, snapshot GES, quorum, For floor, and exact rational approval independently.
@@ -27,26 +27,26 @@ Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlab
 - Execute is gated on a simulation. An approved action can already be dead — `DesignateSpam` needs the proposal Pending, and voting opening mid-approval kills it with no event — so the card says the action can no longer execute rather than offering a button that reverts.
 - The action log names the proposal each action targets and lists every approver with the time their approval landed, derived from the block of each `CouncilActionApproved`.
 
-**GLF actions on a proposal.** Approve Risk Review, veto with a ground and rationale, extend the veto window. The GLF roles have no getters, so the account is probed by simulating the call: allowed gets the button alone, refused gets an explanation, and an unanswerable probe shows both — an RPC failure must never read as a denial.
+**GLF actions on a proposal.** Approve Risk Review, veto with a ground and rationale, extend the veto window. The roles are read from `glfVetoSigner()` and `glfMembers()` where the deployment exposes them, and the signer is shown to every visitor. Where it does not, the account is probed by simulating the call: allowed gets the button alone, refused gets an explanation, and an unanswerable probe shows both — an RPC failure must never read as a denial.
 
 **Delegation.** A directory of every address that can hold voting power, built from paged staking views rather than logs, with your own delegation panel above it. Clicking an address fills the delegate field. The per-position `MIN_ENTRY_VALUE` floor is pre-flighted before the transaction: several small positions cannot be combined to clear it, and the panel says so instead of letting the call revert.
 
 **Elections.** Bootstrap, cohort, special, recall and runoff elections with slate, winners, alternates and candidate roll. Exactly one crank is offered per phase — Open endorsement in Nomination, Seal slate in Preparation, Cast ballot in Voting, Settle from Succeeded — because `startEndorsement` is idempotent and a simulation cannot tell a duplicate from a first call. Claim bond is simulated and shown only when there is something to claim.
 
-## Phase 3 — blocked on contract changes ([CON-864](https://linear.app/genlayer-labs/issue/CON-864))
+## Phase 3 — contract-dependent features ([CON-864](https://linear.app/genlayer-labs/issue/CON-864))
 
-Things the UI cannot do because the value it needs is not readable and cannot be recovered from logs. These need contract additions, not frontend work:
+Things the UI could not do because the value it needs was not readable and cannot be recovered from logs. The contract side is [genlayer-consensus#1563](https://github.com/genlayerlabs/genlayer-consensus/pull/1563); the UI adopts each view with feature detection, so the same build serves a deployment with and without it.
 
-| What | Why | Needed |
-| --- | --- | --- |
-| Nominate a candidate | `nominate` demands an exact `msg.value` of bond + registration fee + manifesto storage; none of the three has a getter and their setter emits nothing | `electionEconomics()` |
-| Live phase countdown, turnout, quorum | No `elections(uint256)` struct getter; turnout exists only after settlement | `elections(uint256)` |
-| Gate the GLF buttons without simulating | `setGLFVetoSigner` / `setGLFMember` write private slots and emit nothing | `glfVetoSigner()`, `glfMembers(address)` |
-| A provably complete action log | `actions` and `actionNonce` are private; actions are discoverable only from logs | `actionCount()`, `actionIdAt(uint256)` |
-| The full candidate roll | `electionSlate` returns only the sealed top set | `candidatesOf(uint256)` |
-| Count proposals in one call | No `proposalCount()`; ids are probed instead | `proposalCount()` |
-| Historical election parameters | Five setters emit no events, so past values are unrecoverable | events on the setters |
-| Vote stake held in a Vesting contract | Not a contract gap — the passthroughs and `VestingFactory.getVesting` exist. `VestingFactory` is simply not registered in gov3's AddressManager | register it |
+| What | Why | Needed | UI status |
+| --- | --- | --- | --- |
+| Nominate a candidate | `nominate` demands an exact `msg.value` of bond + registration fee + manifesto storage; none of the three had a getter and their setter emitted nothing | `electionEconomics()` | pending adoption |
+| Live phase countdown, turnout, quorum | No `elections(uint256)` struct getter; turnout existed only after settlement | `elections(uint256)` | pending adoption |
+| Gate the GLF buttons without simulating | `setGLFVetoSigner` / `setGLFMember` wrote private slots and emitted nothing | `glfVetoSigner()`, `glfMembers(address)` | read where exposed; otherwise simulated |
+| A provably complete action log | `actions` and `actionNonce` are private; actions were discoverable only from logs | `actionCount()`, `actionIdAt(uint256)`, `actionMeta(bytes32)` | pending adoption |
+| The full candidate roll | `electionSlate` returns only the sealed top set | `candidatesOf(uint256)`, `candidateOf(uint256,address)` | pending adoption |
+| Count proposals in one call | No `proposalCount()`; ids were probed instead | `proposalCount()` | read where exposed; otherwise probed |
+| Historical election parameters | Seven setters emitted no events, so past values were unrecoverable | events on the setters, plus `electionPeriods()`, `electionQuorums()`, `termLength()` | pending adoption |
+| Vote stake held in a Vesting contract | Not a contract gap — the passthroughs and `VestingFactory.getVesting` exist. `VestingFactory` is simply not registered in gov3's AddressManager | register it (carried by the upgrade proposal) | pending adoption; the factory key is already resolved |
 
 ## Architecture and trust model
 
@@ -59,6 +59,8 @@ Browser ── eth_call / eth_getLogs ──> configured RPC ──> governance 
 ```
 
 The AddressManager is the only deployment entry point. The app resolves `GovernanceVoting`, obtains its current `contractsHash`, and verifies the active nine-address `ContractSet`. Each proposal's historical GES, voting power, and permission context is then resolved from its pinned set. Vendored ABIs make the static build deterministic; their source is recorded in [`src/abi/provenance.json`](src/abi/provenance.json).
+
+Views added after a deployment shipped are feature-detected (`src/lib/optionalRead.ts`): the view is tried first; a revert selects the log or probe fallback the UI has always had; a transport error keeps the fallback and is reported as "could not read", never as "not available on this deployment".
 
 ### What is cached, and what never is
 
@@ -116,4 +118,4 @@ The Vite base path is `/genlayer-consensus-governance/`, routing uses URL hashes
 
 ## Contract source
 
-The initial ABI cut is `genlayerlabs/genlayer-consensus` PR #1553 at commit `c592217870ea964b9fd7511253f8c498df9fae52`. Refresh the vendored ABIs and provenance together whenever the contract dependency cut changes.
+The initial ABI cut is `genlayerlabs/genlayer-consensus` PR #1553 at commit `c592217870ea964b9fd7511253f8c498df9fae52`. The CON-864 cut (PR #1563, commit `1351ca344990baef677e081e68e6050e4fb0330c`) adds views and events only. Refresh the vendored ABIs and provenance together whenever the contract dependency cut changes.

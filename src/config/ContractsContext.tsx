@@ -14,6 +14,8 @@ interface GovernanceContracts {
   addressManager?: Address
   voting?: Address
   votingPower?: Address
+  /** the VestingFactory the AddressManager names, when it names one (CON-864 #8) */
+  vestingFactory?: Address
   currentContractsHash?: Hex
   currentSet?: ContractSet
   stopState?: {
@@ -57,10 +59,14 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
     try {
       const bytecode = await publicClient.getBytecode({ address: addressManager })
       if (!bytecode) throw new Error('No contract is deployed at this AddressManager address.')
-      const [voting, votingPower] = await Promise.all(['GovernanceVoting', 'GovernanceVotingPower'].map((key) =>
+      const [voting, votingPower, vestingFactoryKey] = await Promise.all(['GovernanceVoting', 'GovernanceVotingPower', 'VestingFactory'].map((key) =>
         publicClient.readContract({ address: addressManager, abi: AddressManagerABI, functionName: 'getAddress', args: [key] }) as Promise<Address>,
       ))
       if (voting === ZERO_ADDRESS || votingPower === ZERO_ADDRESS) throw new Error('This AddressManager does not contain the governance voting contracts.')
+      // Optional: getAddress answers zero for a key that was never set, and
+      // a deployment without a registered factory simply has no vesting
+      // identities to offer.
+      const vestingFactory = vestingFactoryKey === ZERO_ADDRESS ? undefined : vestingFactoryKey
       const currentContractsHash = await publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'currentContractsHash' }) as Hex
       const setValue = await publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'contractSet', args: [currentContractsHash] })
       const currentSet = normalizeSet(setValue)
@@ -70,7 +76,7 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
         publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'migrationInProgress' }) as Promise<boolean>,
       ])
       setState({
-        addressManager, voting, votingPower, currentContractsHash, currentSet, migrationActive,
+        addressManager, voting, votingPower, vestingFactory, currentContractsHash, currentSet, migrationActive,
         stopState: {
           freezeActive: stop[0], freezeKind: Number(stop[1]), freezeEnd: Number(stop[2]),
           maintenanceActive: stop[3], frozenTotal: stop[4],
