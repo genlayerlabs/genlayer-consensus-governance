@@ -25,7 +25,7 @@ Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlab
 - The proposal an action targets is picked from the ones it can legally target — `DesignateSpam` and `RaiseClass` list Pending proposals, `VoidProposal` lists Active, `RiskReview` lists Risk Review and Timelock. Three of the four are enforced where the action *executes*, so an unfiltered pick would be approved by five members before reverting.
 - `RaiseClass` computes its target classes from `classParams`, `isAtLeastAsStrict` and a per-operation `isPermittedFor` check; ineligible classes are listed disabled with the reason.
 - Execute is gated on a simulation. An approved action can already be dead — `DesignateSpam` needs the proposal Pending, and voting opening mid-approval kills it with no event — so the card says the action can no longer execute rather than offering a button that reverts.
-- The action log names the proposal each action targets and lists every approver with the time their approval landed, derived from the block of each `CouncilActionApproved`.
+- The action log names the proposal each action targets and lists every approver with the time their approval landed, derived from the block of each `CouncilActionApproved`. Where the deployment exposes `actionCount()`, the list is the contract's own and an open action bound to an older membership version is flagged stale instead of offering an Approve that would revert.
 
 **GLF actions on a proposal.** Approve Risk Review, veto with a ground and rationale, extend the veto window. The roles are read from `glfVetoSigner()` and `glfMembers()` where the deployment exposes them, and the signer is shown to every visitor. Where it does not, the account is probed by simulating the call: allowed gets the button alone, refused gets an explanation, and an unanswerable probe shows both — an RPC failure must never read as a denial.
 
@@ -42,7 +42,7 @@ Things the UI could not do because the value it needs was not readable and canno
 | Nominate a candidate | `nominate` demands an exact `msg.value` of bond + registration fee + manifesto storage; none of the three had a getter and their setter emitted nothing | `electionEconomics()` | nominate form with the cost to the wei and a preflight that self-corrects from `WrongPayment`; endorse and withdraw on the roll |
 | Live phase countdown, turnout, quorum | No `elections(uint256)` struct getter; turnout existed only after settlement | `elections(uint256)` | exact bounds with a countdown, turnout and the settle-time quorum where exposed; otherwise the projections recorded at start |
 | Gate the GLF buttons without simulating | `setGLFVetoSigner` / `setGLFMember` wrote private slots and emitted nothing | `glfVetoSigner()`, `glfMembers(address)` | read where exposed; otherwise simulated |
-| A provably complete action log | `actions` and `actionNonce` are private; actions were discoverable only from logs | `actionCount()`, `actionIdAt(uint256)`, `actionMeta(bytes32)` | pending adoption |
+| A provably complete action log | `actions` and `actionNonce` are private; actions were discoverable only from logs | `actionCount()`, `actionIdAt(uint256)`, `actionMeta(bytes32)` | enumerated where exposed, with a stale-roster flag from `actionMeta`; logs still supply creators and pre-index actions; otherwise log-built and labelled |
 | The full candidate roll | `electionSlate` returns only the sealed top set | `candidatesOf(uint256)`, `candidateOf(uint256,address)` | the contract's roll where exposed, with manifestos on demand; otherwise rebuilt from logs and labelled |
 | Count proposals in one call | No `proposalCount()`; ids were probed instead | `proposalCount()` | read where exposed; otherwise probed |
 | Historical election parameters | Seven setters emitted no events, so past values were unrecoverable | events on the setters, plus `electionPeriods()`, `electionQuorums()`, `termLength()` | parameters panel with a change history scanned on demand |
@@ -108,7 +108,7 @@ The Vite base path is `/genlayer-consensus-governance/`, routing uses URL hashes
 
 ## Current limitations
 
-- Council actions are rebuilt from logs within a scanned range, because the contract exposes no enumeration on this deployment; election candidates are too where `candidatesOf` is absent or empty. Completeness cannot be proven on that path, and the page says so — see Phase 3.
+- Council actions are rebuilt from logs within a scanned range where `actionCount()` is absent, and election candidates where `candidatesOf` is absent or empty. Completeness cannot be proven on that path, and the page says so — see Phase 3. Even with the index, an action's creator comes only from its `CouncilActionCreated` log.
 - Known ABI decoding is limited to signatures entered by the proposer. Stored operations always retain a raw selector, arguments, value, calldata, and verified payload commitment.
 - Creation-time staking epoch validation is authoritative only in the `propose` preflight, because the pinned governance `ContractSet` does not include the staking router.
 - L1 bridge progress is represented in the proposal lifecycle, but a deployed bridge/executor and its live events are required for transaction-specific L1 status.

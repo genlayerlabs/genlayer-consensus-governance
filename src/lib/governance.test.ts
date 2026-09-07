@@ -2,7 +2,7 @@ import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
   ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, throttleBackoffMs, truncate,
-  MANIFESTO_MAX_BYTES, manifestoWithinLimit, nominationCost, wrongPaymentRequired,
+  isStaleRoster, MANIFESTO_MAX_BYTES, manifestoWithinLimit, nominationCost, wrongPaymentRequired,
   elapsedUnfrozen, electionBounds, electionCountdown, electionInstant, electionQuorumMet, electionQuorumRequired, electionStateOf, electionSubPhase, electionVerdict, formatRelative, normalizeElection, resolveEffectiveInstant } from './governance'
 
 describe('governance helpers', () => {
@@ -362,5 +362,17 @@ describe('nomination cost (CON-864 #1)', () => {
     expect(errorMessage(new Error('reverted with custom error WrongPayment(1, 2)'))).toMatch(/exact nomination cost/)
     expect(errorMessage(new Error('RegistrationClosed()'))).toMatch(/Registration is closed/)
     expect(errorMessage(new Error('TooManyEndorsements()'))).toMatch(/three candidates/)
+  })
+})
+
+describe('stale roster (CON-864 #4)', () => {
+  it('flags a non-emergency action bound to an older membership version, and only that', () => {
+    expect(isStaleRoster(0, 1n, 2n)).toBe(true)
+    expect(isStaleRoster(0, 2n, 2n)).toBe(false)
+    // EmergencyApprove is judged by its snapshotted roster, never by version
+    expect(isStaleRoster(4, 1n, 2n)).toBe(false)
+    // unknown on either side is not stale — never hide Approve on a guess
+    expect(isStaleRoster(0, undefined, 2n)).toBe(false)
+    expect(isStaleRoster(0, 1n, undefined)).toBe(false)
   })
 })

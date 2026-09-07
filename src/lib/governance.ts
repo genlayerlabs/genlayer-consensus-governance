@@ -519,6 +519,17 @@ export function electionNextAction(state: number, subPhase?: ElectionSubPhase): 
   ][state] ?? 'Inspect contract state'
 }
 
+/**
+ * A non-emergency action is bound to the membership version it was created
+ * under; a bump silently invalidates it with no event. EmergencyApprove is
+ * judged by its snapshotted eligible roster instead and never goes stale
+ * this way. Unknown until both versions are readable.
+ */
+export function isStaleRoster(actionType: number, rosterVersion: bigint | undefined, membershipVersion: bigint | undefined): boolean {
+  if (actionType === 4 || rosterVersion === undefined || membershipVersion === undefined) return false
+  return rosterVersion < membershipVersion
+}
+
 // ── Election time model (CON-864) ───────────────────────────────────────────
 //
 // The contract stores UNFROZEN offsets from creationTime and the clock's

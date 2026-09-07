@@ -177,9 +177,14 @@ export interface CouncilAction {
   /** ActionType: 0 DesignateSpam, 1 VoidProposal, 2 RaiseClass, 3 RiskReview,
    *  4 EmergencyApprove, 5 Freeze, 6 Unfreeze */
   actionType: number
-  creator: Address
+  /** from CouncilActionCreated only: the contract stores no creator, so an action enumerated from the index that lies outside the scanned logs has none */
+  creator?: Address
   actionData: Hex
   expiresAt: bigint
+  /** membershipVersion at creation, from actionMeta() where the deployment exposes it (CON-864) */
+  rosterVersion?: bigint
+  /** 'index' when enumerated by actionCount/actionIdAt; 'log' when only discovered from CouncilActionCreated */
+  source: 'index' | 'log'
   /** ActionStatus: 0 None, 1 Open, 2 Approved, 3 Consumed */
   status: number
   /** VALID approvals as recounted on-chain, not the raw tally */

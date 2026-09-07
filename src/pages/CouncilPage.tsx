@@ -16,13 +16,13 @@ import type { CouncilAction, CouncilThresholds, ProposalSummary } from '@/lib/ty
 import {
   ACTION_PROPOSAL_STATES, ACTION_STATUS_NAMES, ACTION_TYPE_NAMES, COHORT_NAMES, FREEZE_KIND_NAMES,
   SEAT_STATUS_NAMES, actionProposalId, actionProposalRequirement, actionThreshold, describeActionData,
-  CLASS_NAMES, encodeActionData, formatDate, formatDuration, freezeKindOf, shortAddress, truncate,
+  CLASS_NAMES, encodeActionData, formatDate, formatDuration, freezeKindOf, isStaleRoster, shortAddress, truncate,
 } from '@/lib/governance'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 
 const HINTS = {
   membershipVersion:
-    'Bumped by any seat or threshold change. A non-emergency action is bound to the version it was created under, so a bump silently invalidates every open one — they must be re-created, not re-approved.',
+    'Bumped by any seat or threshold change. A non-emergency action is bound to the version it was created under, so a bump silently invalidates every open one — they must be re-created, not re-approved. Where the deployment exposes actionMeta, open actions bound to an older version are flagged "Stale roster" below.',
   actionable:
     'Seats that count toward a threshold right now. Thresholds are ABSOLUTE counts, never scaled down by vacancies, so a 5-of-9 action still needs 5 approvals even with seats empty.',
   holdOver:
@@ -182,14 +182,17 @@ const COUNCIL_PROBE_ABI = [
   ...(GovernanceVotingABI as { type: string }[]).filter((entry) => entry.type === 'error'),
 ]
 
-function ActionRow({ action, council, isMember, thresholds, proposals, now, onDone }: {
+function ActionRow({ action, council, isMember, thresholds, membershipVersion, proposals, now, onDone }: {
   action: CouncilAction; council?: `0x${string}`; isMember: boolean
-  thresholds: CouncilThresholds; proposals: ProposalSummary[]; now: bigint; onDone: () => void
+  thresholds: CouncilThresholds; membershipVersion?: bigint; proposals: ProposalSummary[]; now: bigint; onDone: () => void
 }) {
   const { address } = useWallet()
   const required = actionThreshold(action.actionType, thresholds, freezeKindOf(action.actionType, action.actionData))
   const expired = action.expiresAt <= now && !action.executed
-  const ready = action.status === 2 && !action.executed && !expired
+  // Bound to an older roster: approving reverts StaleRoster, and nothing
+  // on-chain marks it — readable only where actionMeta exists.
+  const stale = !action.executed && isStaleRoster(action.actionType, action.rosterVersion, membershipVersion)
+  const ready = action.status === 2 && !action.executed && !expired && !stale
   // executeAction is permissionless, so a simulation answers the only question
   // that matters: would it work NOW. An approved action can still be dead —
   // DesignateSpam needs the proposal Pending, and voting opening while the
@@ -198,7 +201,7 @@ function ActionRow({ action, council, isMember, thresholds, proposals, now, onDo
     address: council, abi: COUNCIL_PROBE_ABI as never, functionName: 'executeAction',
     args: [action.actionId], account: address, enabled: ready,
   })
-  const tone = action.executed ? 1 : expired || canExecute === false ? 0 : 2
+  const tone = action.executed ? 1 : expired || stale || canExecute === false ? 0 : 2
 
   return <article className="action-card">
     <header>
@@ -206,10 +209,10 @@ function ActionRow({ action, council, isMember, thresholds, proposals, now, onDo
       <b>{ACTION_TYPE_NAMES[action.actionType] ?? `Type ${action.actionType}`}</b>
       <span className="action-target">{targetTitle(action.actionType, action.actionData, proposals)}</span>
       <span className={`seat-status support-${tone}`}>
-        {action.executed ? 'Executed' : expired ? 'Expired' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
+        {action.executed ? 'Executed' : expired ? 'Expired' : stale ? 'Stale roster' : ACTION_STATUS_NAMES[action.status] ?? `Status ${action.status}`}</span>
       <span className="action-tally">{action.approvals} / {required} approvals</span>
     </header>
-    <p className="action-meta">By {shortAddress(action.creator)} · {expired ? 'Lapsed' : 'Expires'} {formatDate(action.expiresAt)}
+    <p className="action-meta">{action.creator ? `By ${shortAddress(action.creator)}` : 'Creator outside the scanned logs'}{action.rosterVersion !== undefined && ` · roster v${action.rosterVersion.toString()}`} · {expired ? 'Lapsed' : 'Expires'} {formatDate(action.expiresAt)}
       {action.transactionHash && <> · <a href={explorerTx(action.transactionHash)} target="_blank" rel="noreferrer">
         View on explorer <ExternalLink size={11} /></a></>}</p>
 
@@ -221,12 +224,17 @@ function ActionRow({ action, council, isMember, thresholds, proposals, now, onDo
       </span>)}
     </div>}
 
+    {stale && <div className="role-note"><AlertTriangle size={16} /><p>
+      <b>Bound to an older roster</b>
+      This action was created under membership version {action.rosterVersion?.toString()}; the roster is now
+      version {membershipVersion?.toString()}, so approving or executing it reverts StaleRoster. It must be
+      re-created.</p></div>}
     {ready && canExecute === false && <div className="role-note"><AlertTriangle size={16} /><p>
       <b>Approved, but it can no longer execute</b>
       {reason || 'Executing it now reverts.'} Nothing on-chain marks this, so the action keeps reporting Approved
       until it expires.</p></div>}
 
-    {!action.executed && !expired && <div className="action-buttons">
+    {!action.executed && !expired && !stale && <div className="action-buttons">
       {/* An action at threshold needs no more signatures, and one that can
           never execute needs nothing at all — a disabled Approve under a
           "cannot execute" notice is an offer to do useless work. */}
@@ -329,16 +337,22 @@ export function CouncilPage() {
 
       <section className="panel">
         <div className="section-heading"><div><p className="eyebrow">On-chain action log</p><h2>Actions</h2></div>
-          <span>{actions.actions.length} found</span></div>
+          <span>{actions.actions.length} {actions.complete ? 'actions · complete' : 'found in scanned range'}<InfoHint text={actions.complete
+            ? 'Enumerated by actionCount()/actionIdAt(): the contract\'s own list. Actions created before the index existed are merged in from CouncilActionCreated logs.'
+            : actions.indexUnknown
+              ? 'The action index could not be read from the node, so this list is built from CouncilActionCreated logs within the scanned range.'
+              : 'This deployment exposes no action enumeration, so the list is built from CouncilActionCreated logs within the scanned range and cannot be proven complete.'} /></span></div>
         {actions.progress && <p className="scan-progress">{actions.progress}</p>}
         {actions.error && <div className="error-box">{actions.error}</div>}
         <div className="action-log">{actions.actions.map((action) => <ActionRow
           key={action.actionId} action={action} council={currentSet.council} isMember={isMember}
-          thresholds={overview.thresholds} proposals={proposals} now={now}
+          thresholds={overview.thresholds} membershipVersion={overview.membershipVersion} proposals={proposals} now={now}
           onDone={() => { void actions.refresh(); void refresh() }} />)}
         {!actions.loading && actions.actions.length === 0 && <div className="empty inline">
-          <p>No council actions found. The contract exposes no action enumeration, so this list is built from
-          <code>CouncilActionCreated</code> logs within the scanned range.</p></div>}
+          <p>{actions.complete
+            ? 'No council actions: actionCount() is zero and the scanned logs hold none.'
+            : <>No council actions found. This deployment exposes no action enumeration, so this list is built from
+          <code>CouncilActionCreated</code> logs within the scanned range.</>}</p></div>}
         </div>
       </section>
     </>}
