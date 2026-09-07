@@ -15,7 +15,7 @@ Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlab
 - Inspect lifecycle, veto/Risk Review influence, pinned `contractsHash`, timelock, execution window, and retry state.
 - Scan `VoteCast` logs in bounded, adaptive RPC ranges; filter voters and retain partial results after RPC errors.
 - Connect an injected wallet, view snapshot voting power, vote with an optional on-chain reason, settle, execute/retry, and expire.
-- Vote as the connected account **or through a validator wallet you own** — wallets below the snapshot threshold are listed and disabled rather than hidden.
+- Vote as the connected account, **through a validator wallet you own, or through your Vesting contract** — identities that cannot vote are listed and disabled with the reason rather than hidden. The same picker delegates and casts election ballots.
 - Build executable proposals or RFCs with class rules, payload permissions, byte limits, account eligibility, bond, and `eth_call` preflight checks.
 
 ## Phase 2 — council, delegation, elections ([CON-862](https://linear.app/genlayer-labs/issue/CON-862))
@@ -46,7 +46,7 @@ Things the UI could not do because the value it needs was not readable and canno
 | The full candidate roll | `electionSlate` returns only the sealed top set | `candidatesOf(uint256)`, `candidateOf(uint256,address)` | the contract's roll where exposed, with manifestos on demand; otherwise rebuilt from logs and labelled |
 | Count proposals in one call | No `proposalCount()`; ids were probed instead | `proposalCount()` | read where exposed; otherwise probed |
 | Historical election parameters | Seven setters emitted no events, so past values were unrecoverable | events on the setters, plus `electionPeriods()`, `electionQuorums()`, `termLength()` | parameters panel with a change history scanned on demand |
-| Vote stake held in a Vesting contract | Not a contract gap — the passthroughs and `VestingFactory.getVesting` exist. `VestingFactory` is simply not registered in gov3's AddressManager | register it (carried by the upgrade proposal) | pending adoption; the factory key is already resolved |
+| Vote stake held in a Vesting contract | Not a contract gap — the passthroughs and `VestingFactory.getVesting` exist. `VestingFactory` is simply not registered in gov3's AddressManager | register it (carried by the upgrade proposal) | the vesting appears in "Vote as", "Delegate as" and "Ballot as" where the factory is registered; validator wallets the vesting owns are listed disabled, since Vesting has no passthrough for their votes |
 
 ## Architecture and trust model
 
@@ -115,6 +115,7 @@ The Vite base path is `/genlayer-consensus-governance/`, routing uses URL hashes
 - The delegate directory is the union of joined validators and their delegators — a superset of everyone who can hold voting power, but it truncates at the paged-read ceiling and says so when it does.
 - Reorganizations are handled by confirmed receipt waits and explicit refresh; cached logs carry a reorg margin below the head.
 - Seat lifecycle actions, recall triggering, escrowed bond claims and the emergency path are readable but unbuilt. Nothing blocks them; they were out of scope for the POC.
+- A validator wallet owned by a Vesting contract can be voted by nobody from a browser: Vesting exposes passthroughs for its own weight, none for its wallets'. Such wallets are listed disabled with that reason.
 
 ## Contract source
 

@@ -8,6 +8,10 @@ import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { useDelegateDirectory } from '@/hooks/useDelegateDirectory'
 import { useMyDelegation } from '@/hooks/useMyDelegation'
+import { useVoterIdentities } from '@/hooks/useVoterIdentities'
+import { IdentityPicker } from '@/components/IdentityPicker'
+import { ABI_BY_KEY } from '@/lib/abis'
+import { delegateRoute } from '@/lib/identity'
 import { formatDate, formatGen, MIN_ENTRY_VALUE, shortAddress, ZERO_ADDRESS } from '@/lib/governance'
 import { explorerAddress } from '@/lib/rpc'
 
@@ -29,7 +33,10 @@ function MyDelegation({ onChanged, target, setTarget }: {
 }) {
   const { currentSet } = useContracts()
   const { address, isConnected } = useWallet()
-  const { summary, error, refresh } = useMyDelegation()
+  const [actAs, setActAs] = useState<`0x${string}` | ''>('')
+  const identities = useVoterIdentities()
+  const identity = identities.identities.find((entry) => entry.kind !== 'eoa' && entry.address === actAs) ?? (address ? { kind: 'eoa' as const, address } : undefined)
+  const { summary, error, refresh } = useMyDelegation(identity?.address)
   const now = BigInt(Math.floor(Date.now() / 1000))
 
   if (!isConnected) {
@@ -42,11 +49,16 @@ function MyDelegation({ onChanged, target, setTarget }: {
 
   const blockedPositions = summary.positions.filter((position) => !position.meetsFloor && (position.shares > 0n || position.pending > 0n))
   const canDelegateOut = summary.positions.length > 0 && blockedPositions.length === 0
-  const done = () => { void refresh(); onChanged() }
+  const done = () => { void refresh(); void identities.refresh(); onChanged() }
+  const routeTo = (to: `0x${string}`) => identity && currentSet ? delegateRoute(identity, currentSet.votingPower, to) : undefined
+  const delegateOut = routeTo(target.trim() as `0x${string}`)
+  const selfRoute = identity ? routeTo(identity.address) : undefined
+  const parkRoute = routeTo(ZERO_ADDRESS)
 
   return <>
     <div className="section-heading"><div><p className="eyebrow">Your delegation</p>
       <h2>{summary.parked ? 'Parked' : summary.self ? 'Self-delegated' : `Delegated to ${shortAddress(summary.delegate)}`}</h2></div></div>
+    {identities.identities.length > 1 && <IdentityPicker label="Delegate as" identities={identities.identities.map((entry) => ({ ...entry, hasVoted: false }))} selected={actAs} onSelect={setActAs} loading={identities.loading} error={identities.error} />}
 
     <div className="header-facts">
       <span><small>Voting power</small>{formatGen(summary.votingPower)} GEN</span>
@@ -74,17 +86,17 @@ function MyDelegation({ onChanged, target, setTarget }: {
     </div>
     <div className="action-buttons">
       <TransactionButton
-        address={currentSet?.votingPower} abi={GovernanceVotingPowerABI as never}
-        functionName="delegate" args={[target]}
+        address={delegateOut?.address ?? currentSet?.votingPower} abi={delegateOut ? ABI_BY_KEY[delegateOut.abi] : (GovernanceVotingPowerABI as never)}
+        functionName={delegateOut?.functionName ?? 'delegate'} args={delegateOut?.args ?? [target]}
         disabled={!target.trim() || summary.excluded || !canDelegateOut} onConfirmed={done}
-      >Delegate</TransactionButton>
+      >Delegate{identity && identity.kind !== 'eoa' ? ` as ${shortAddress(identity.address)}` : ''}</TransactionButton>
       <TransactionButton
-        address={currentSet?.votingPower} abi={GovernanceVotingPowerABI as never} variant="secondary"
-        functionName="delegate" args={[address]} disabled={summary.self || summary.excluded} onConfirmed={done}
+        address={selfRoute?.address ?? currentSet?.votingPower} abi={selfRoute ? ABI_BY_KEY[selfRoute.abi] : (GovernanceVotingPowerABI as never)} variant="secondary"
+        functionName={selfRoute?.functionName ?? 'delegate'} args={selfRoute?.args ?? [address]} disabled={summary.self || summary.excluded} onConfirmed={done}
       >Self-delegate</TransactionButton>
       <TransactionButton
-        address={currentSet?.votingPower} abi={GovernanceVotingPowerABI as never} variant="ghost"
-        functionName="delegate" args={[ZERO_ADDRESS]} disabled={summary.parked} onConfirmed={done}
+        address={parkRoute?.address ?? currentSet?.votingPower} abi={parkRoute ? ABI_BY_KEY[parkRoute.abi] : (GovernanceVotingPowerABI as never)} variant="ghost"
+        functionName={parkRoute?.functionName ?? 'delegate'} args={parkRoute?.args ?? [ZERO_ADDRESS]} disabled={summary.parked} onConfirmed={done}
       >Park<InfoHint text={HINTS.park} /></TransactionButton>
     </div>
   </>

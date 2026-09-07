@@ -21,9 +21,12 @@ import type { DelegationSummary } from '@/lib/types'
  * Self-delegation and parking skip the check entirely: the contract only
  * applies it when `to` is neither the account nor the zero address.
  */
-export function useMyDelegation() {
+export function useMyDelegation(actAs?: Address) {
   const { currentSet } = useContracts()
-  const { address } = useWallet()
+  const { address: connected } = useWallet()
+  // the identity whose delegation is shown and changed: the EOA, or a
+  // validator wallet / vesting it controls (CON-864 #8)
+  const address = actAs ?? connected
   const [summary, setSummary] = useState<DelegationSummary>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
