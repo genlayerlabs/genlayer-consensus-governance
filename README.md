@@ -31,7 +31,7 @@ Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlab
 
 **Delegation.** A directory of every address that can hold voting power, built from paged staking views rather than logs, with your own delegation panel above it. Clicking an address fills the delegate field. The per-position `MIN_ENTRY_VALUE` floor is pre-flighted before the transaction: several small positions cannot be combined to clear it, and the panel says so instead of letting the call revert.
 
-**Elections.** Bootstrap, cohort, special, recall and runoff elections with slate, winners, alternates and candidate roll. Where the deployment exposes the election struct, the phase boundaries are computed from its unfrozen offsets and the clock's frozen total — the contract's own arithmetic — and shown with a countdown, alongside turnout against the settle-time quorum and what settle will record. Exactly one crank is offered per phase — Open endorsement in Nomination, Seal slate in Preparation, Cast ballot in Voting, Settle from Succeeded — because `startEndorsement` is idempotent and a simulation cannot tell a duplicate from a first call. Claim bond is simulated and shown only when there is something to claim.
+**Elections.** Bootstrap, cohort, special, recall and runoff elections with slate, winners, alternates and candidate roll. Nominate with the exact bond + fee + storage cost, endorse candidates and withdraw a candidacy where the economics are readable. Where the deployment exposes the election struct, the phase boundaries are computed from its unfrozen offsets and the clock's frozen total — the contract's own arithmetic — and shown with a countdown, alongside turnout against the settle-time quorum and what settle will record. Exactly one crank is offered per phase — Open endorsement in Nomination, Seal slate in Preparation, Cast ballot in Voting, Settle from Succeeded — because `startEndorsement` is idempotent and a simulation cannot tell a duplicate from a first call. Claim bond is simulated and shown only when there is something to claim.
 
 ## Phase 3 — contract-dependent features ([CON-864](https://linear.app/genlayer-labs/issue/CON-864))
 
@@ -39,7 +39,7 @@ Things the UI could not do because the value it needs was not readable and canno
 
 | What | Why | Needed | UI status |
 | --- | --- | --- | --- |
-| Nominate a candidate | `nominate` demands an exact `msg.value` of bond + registration fee + manifesto storage; none of the three had a getter and their setter emitted nothing | `electionEconomics()` | pending adoption |
+| Nominate a candidate | `nominate` demands an exact `msg.value` of bond + registration fee + manifesto storage; none of the three had a getter and their setter emitted nothing | `electionEconomics()` | nominate form with the cost to the wei and a preflight that self-corrects from `WrongPayment`; endorse and withdraw on the roll |
 | Live phase countdown, turnout, quorum | No `elections(uint256)` struct getter; turnout existed only after settlement | `elections(uint256)` | exact bounds with a countdown, turnout and the settle-time quorum where exposed; otherwise the projections recorded at start |
 | Gate the GLF buttons without simulating | `setGLFVetoSigner` / `setGLFMember` wrote private slots and emitted nothing | `glfVetoSigner()`, `glfMembers(address)` | read where exposed; otherwise simulated |
 | A provably complete action log | `actions` and `actionNonce` are private; actions were discoverable only from logs | `actionCount()`, `actionIdAt(uint256)`, `actionMeta(bytes32)` | pending adoption |

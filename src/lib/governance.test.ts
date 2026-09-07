@@ -2,6 +2,7 @@ import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
   ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, throttleBackoffMs, truncate,
+  MANIFESTO_MAX_BYTES, manifestoWithinLimit, nominationCost, wrongPaymentRequired,
   elapsedUnfrozen, electionBounds, electionCountdown, electionInstant, electionQuorumMet, electionQuorumRequired, electionStateOf, electionSubPhase, electionVerdict, formatRelative, normalizeElection, resolveEffectiveInstant } from './governance'
 
 describe('governance helpers', () => {
@@ -331,5 +332,35 @@ describe('election time model (CON-864)', () => {
     expect(electionNextAction(1, 'registration')).toMatch(/nominate/i)
     expect(electionNextAction(1, 'endorsement')).toMatch(/endorse/i)
     expect(electionNextAction(1)).toBe('Nominate or endorse')
+  })
+})
+
+describe('nomination cost (CON-864 #1)', () => {
+  const economics = { candidateBond: parseEther('10000'), registrationFee: parseEther('100'), storageFeePerByte: parseEther('0.01') }
+
+  it('charges storage only beyond the free first KB, to the wei', () => {
+    expect(nominationCost(0, economics)).toMatchObject({ fees: parseEther('100'), billableBytes: 0, total: parseEther('10100') })
+    expect(nominationCost(1024, economics)).toMatchObject({ fees: parseEther('100'), billableBytes: 0 })
+    expect(nominationCost(1025, economics)).toMatchObject({ fees: parseEther('100.01'), billableBytes: 1 })
+    // the fixture case: 2,048 bytes → 1,024 billable at 0.01
+    expect(nominationCost(2048, economics).total).toBe(parseEther('10000') + parseEther('100') + parseEther('0.01') * 1024n)
+  })
+
+  it('caps the manifesto at 16 KB inclusive', () => {
+    expect(manifestoWithinLimit(MANIFESTO_MAX_BYTES)).toBe(true)
+    expect(manifestoWithinLimit(MANIFESTO_MAX_BYTES + 1)).toBe(false)
+  })
+
+  it('recovers the required figure from a WrongPayment revert and nothing else', () => {
+    const revert = { name: 'ContractFunctionExecutionError', cause: { name: 'ContractFunctionRevertedError', data: { errorName: 'WrongPayment', args: [1n, 10100n] } } }
+    expect(wrongPaymentRequired(revert)).toBe(10100n)
+    expect(wrongPaymentRequired({ cause: { data: { errorName: 'RegistrationClosed', args: [] } } })).toBeUndefined()
+    expect(wrongPaymentRequired(new Error('fetch failed'))).toBeUndefined()
+  })
+
+  it('translates the election reverts', () => {
+    expect(errorMessage(new Error('reverted with custom error WrongPayment(1, 2)'))).toMatch(/exact nomination cost/)
+    expect(errorMessage(new Error('RegistrationClosed()'))).toMatch(/Registration is closed/)
+    expect(errorMessage(new Error('TooManyEndorsements()'))).toMatch(/three candidates/)
   })
 })

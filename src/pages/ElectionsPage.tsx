@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import type { Address } from 'viem'
 import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json'
 import { Button } from '@/components/Button'
+import { NominateForm } from '@/components/NominateForm'
 import { InfoHint } from '@/components/InfoHint'
 import { TransactionButton } from '@/components/TransactionButton'
 import { publicClient } from '@/config/clients'
@@ -11,11 +12,11 @@ import { useWallet } from '@/config/WalletContext'
 import { useCanCall } from '@/hooks/useCanCall'
 import { useElectionCandidates, useElections } from '@/hooks/useElections'
 import { useElectionParameterHistory } from '@/hooks/useElectionParameterHistory'
-import { useElectionParameters } from '@/hooks/useElectionParameters'
+import { useElectionParameters, type ElectionParameters } from '@/hooks/useElectionParameters'
 import { useNow } from '@/hooks/useNow'
 import {
-  ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCountdown, electionCranks, electionNextAction, electionVerdict,
-  formatDate, formatDuration, formatGen, formatPercent, formatRelative, shortAddress,
+  ELECTION_KIND_NAMES, ELECTION_KIND_RUNOFF, ELECTION_STATE_NAMES, electionCountdown, electionCranks, electionNextAction, electionVerdict,
+  formatDate, formatDuration, formatGen, formatPercent, formatRelative, shortAddress, type NominationEconomics,
 } from '@/lib/governance'
 import { describeMissing, isPresent } from '@/lib/optionalRead'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
@@ -40,7 +41,7 @@ const HINTS = {
     'Limited voting: one to three distinct slated candidates, each receiving your full snapshot weight. One ballot per account, no recasting.',
 }
 
-function ElectionCard({ election, elections, onChanged }: { election: ElectionSummary; elections?: Address; onChanged: () => void }) {
+function ElectionCard({ election, elections, economics, onChanged }: { election: ElectionSummary; elections?: Address; economics?: NominationEconomics; onChanged: () => void }) {
   // Open by default: the slate, candidates and ballot are the page — hiding
   // them behind a click made an election look like a one-line stub.
   const { address } = useWallet()
@@ -61,6 +62,12 @@ function ElectionCard({ election, elections, onChanged }: { election: ElectionSu
     args: [election.id], account: address, enabled: open && election.state >= 2,
   })
 
+  // Registration is knowable only with the struct; endorsement is offered
+  // whenever Nomination is not provably still in registration, and the
+  // contract's EndorsementNotStarted says the rest.
+  const inRegistration = election.state === 1 && election.subPhase === 'registration'
+  const mayEndorse = election.state === 1 && election.subPhase !== 'registration' && election.kind !== ELECTION_KIND_RUNOFF
+  const own = (candidate: Address) => !!address && candidate.toLowerCase() === address.toLowerCase()
   const bounds = election.bounds
   const countdown = bounds ? electionCountdown(election.state, election.subPhase, bounds) : undefined
   const verdict = election.details ? electionVerdict(election.details, election.ges) : 'unknown'
@@ -126,12 +133,22 @@ function ElectionCard({ election, elections, onChanged }: { election: ElectionSu
           : election.alternates.some((alternate) => alternate.toLowerCase() === candidate.address.toLowerCase())
             ? 'Alternate'
             : 'Not seated'}</p>
-        <CandidateManifesto elections={elections} electionId={election.id} candidate={candidate.address} />
+        <span className="row-actions">
+          <CandidateManifesto elections={elections} electionId={election.id} candidate={candidate.address} />
+          {mayEndorse && !candidate.withdrawn && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} functionName="endorse" args={[election.id, candidate.address]} variant="ghost" onConfirmed={() => { void candidates.refresh(); onChanged() }}>Endorse</TransactionButton>}
+          {inRegistration && own(candidate.address) && !candidate.withdrawn && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} functionName="withdrawCandidacy" args={[election.id]} variant="ghost" onConfirmed={() => { void candidates.refresh(); onChanged() }}>Withdraw</TransactionButton>}
+        </span>
       </article>)}
       {!candidates.loading && candidates.candidates.length === 0 && <div className="empty inline">
         <p>{candidates.complete ? 'No candidates.' : 'No candidates found in the scanned range.'}</p></div>}
       </div>
 
+      {inRegistration && election.kind !== ELECTION_KIND_RUNOFF && (economics
+        ? candidates.candidates.some((candidate) => own(candidate.address) && !candidate.withdrawn)
+          ? <p className="hint">This account is a candidate in this election. Withdraw from its row above while registration is open; the bond is refunded on the spot.</p>
+          : <NominateForm election={election} elections={elections!} economics={economics} onNominated={() => { void candidates.refresh(); onChanged() }} />
+        : <p className="hint">Nomination is not offered on this deployment: <code>nominate</code> demands an exact value of bond + registration fee + manifesto storage, and none of the three is readable here.</p>)}
+      {mayEndorse && <p className="hint">Endorse up to three candidates; each endorsement carries this account's weight at the endorsement snapshot. Endorsing promotes a candidate towards the sealed slate.</p>}
       {cranks.some((crank) => crank.fn === 'castBallot') && <div className="form-grid">
         <label className="full"><span className="label-text">Ballot — one to three slated candidates<InfoHint text={HINTS.ballot} /></span>
           <input value={picks} onChange={(event) => setPicks(event.target.value)} placeholder="0xabc…, 0xdef…" />
@@ -185,8 +202,7 @@ function CandidateManifesto({ elections, electionId, candidate }: { elections?: 
 
 function bps(value: number) { return `${value / 100}%` }
 
-function ParametersPanel() {
-  const parameters = useElectionParameters()
+function ParametersPanel({ parameters }: { parameters: ElectionParameters }) {
   const history = useElectionParameterHistory()
   const economics = parameters.economics
   return <section className="panel">
@@ -232,6 +248,8 @@ function ParametersPanel() {
 export function ElectionsPage() {
   const { currentSet } = useContracts()
   const { elections, loading, error, source, refresh } = useElections()
+  const parameters = useElectionParameters()
+  const economics = isPresent(parameters.economics) ? parameters.economics.value : undefined
 
   if (!currentSet?.elections) {
     return <div className="page"><section className="empty"><h1>Select a deployment</h1>
@@ -245,7 +263,7 @@ export function ElectionsPage() {
       <p>Bootstrap, cohort, special, recall and runoff elections, read directly from chain.</p>
     </div><Button variant="ghost" onClick={() => void refresh()}><RefreshCw size={15} /> Refresh</Button></div>
 
-    <ParametersPanel />
+    <ParametersPanel parameters={parameters} />
 
     {error && <div className="error-box">{error}</div>}
     {loading && elections.length === 0 && <div className="loading-state">Reading elections directly from chain…</div>}
@@ -260,6 +278,6 @@ export function ElectionsPage() {
         functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start an election</TransactionButton>
     </section>}
 
-    {elections.map((election) => <ElectionCard key={election.id.toString()} election={election} elections={currentSet.elections} onChanged={() => void refresh()} />)}
+    {elections.map((election) => <ElectionCard key={election.id.toString()} election={election} elections={currentSet.elections} economics={economics} onChanged={() => void refresh()} />)}
   </div>
 }

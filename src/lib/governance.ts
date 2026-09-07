@@ -646,6 +646,44 @@ export function electionVerdict(election: ElectionDetails, ges?: bigint): 'succe
   return electionQuorumMet(election.turnout, election.quorumBps, ges) ? 'succeeded' : 'failing'
 }
 
+// ── Nomination (CON-864 #1) ─────────────────────────────────────────────────
+
+/** §7.3: a manifesto is capped at 16 KB and its first KB is stored free. */
+export const MANIFESTO_MAX_BYTES = 16_384
+export const MANIFESTO_FREE_BYTES = 1_024
+
+export interface NominationEconomics { candidateBond: bigint; registrationFee: bigint; storageFeePerByte: bigint }
+
+/**
+ * What `nominate` demands as msg.value, to the wei: the refundable bond plus
+ * the registration fee plus the storage fee for every byte beyond the free
+ * first KB. Anything else reverts WrongPayment.
+ */
+export function nominationCost(manifestoBytes: number, economics: NominationEconomics): { bond: bigint; fees: bigint; total: bigint; billableBytes: number } {
+  const billableBytes = Math.max(0, manifestoBytes - MANIFESTO_FREE_BYTES)
+  const fees = economics.registrationFee + BigInt(billableBytes) * economics.storageFeePerByte
+  return { bond: economics.candidateBond, fees, total: economics.candidateBond + fees, billableBytes }
+}
+
+export function manifestoWithinLimit(manifestoBytes: number): boolean {
+  return manifestoBytes <= MANIFESTO_MAX_BYTES
+}
+
+/**
+ * The exact figure a WrongPayment(provided, required) revert asked for, so a
+ * preflight can correct its value once instead of guessing again. Walks
+ * viem's cause chain for the decoded error; undefined for any other failure.
+ */
+export function wrongPaymentRequired(error: unknown): bigint | undefined {
+  let cursor: any = error
+  for (let depth = 0; cursor && depth < 8; depth += 1) {
+    const data = cursor.data
+    if (data?.errorName === 'WrongPayment' && Array.isArray(data.args) && data.args.length === 2) return BigInt(data.args[1])
+    cursor = cursor.cause
+  }
+  return undefined
+}
+
 /** A relative time for a countdown: "in 4 minutes", "2 hours ago". */
 export function formatRelative(at: bigint, now: bigint): string {
   const delta = at - now
@@ -707,6 +745,24 @@ export function errorMessage(error: unknown): string {
     Frozen: 'Governance is currently frozen.',
     MigrationInProgress: 'Governance is currently migrating.',
     WrongState: 'The proposal is not in the required state for this action.',
+    // Council elections (CON-864 #1): nomination, endorsement and ballots.
+    WrongPayment: 'The value sent does not equal the exact nomination cost: bond + registration fee + storage fee for every manifesto byte beyond the first KB.',
+    RegistrationClosed: 'Registration is closed for this election — nominations and withdrawals are only accepted while it is open, and never in a runoff.',
+    AlreadyNominated: 'This account is already a candidate in this election.',
+    IneligibleCandidate: 'This account cannot stand: it is excluded from governance, or already sits on the council in another cohort.',
+    RecallCooldownActive: 'This account was recalled from the council and is still inside its cooldown.',
+    ManifestoTooLarge: 'The manifesto exceeds the 16 KB on-chain cap.',
+    EndorsementNotStarted: 'Endorsement has not opened yet — startEndorsement closes registration first.',
+    NotACandidate: 'That address is not a candidate in this election.',
+    AlreadyEndorsed: 'This account has already endorsed that candidate.',
+    TooManyEndorsements: 'An account may endorse at most three candidates per election.',
+    WrongPhase: 'The election is not in the phase this action belongs to.',
+    NotSlated: 'That candidate is not on the sealed slate, so it cannot receive a ballot.',
+    AlreadyBalloted: 'This account has already cast its ballot in this election.',
+    BadBallot: 'A ballot names one to three DISTINCT slated candidates.',
+    NothingToClaim: 'This account holds no claimable bond in this election.',
+    UnknownElection: 'No election exists with that id.',
+    NoElectionDue: 'No election is due: the bootstrap gate, a cohort expiry, a special-election trigger or a queued recall has to arrive first.',
   }
   // Checked BEFORE the revert names: viem reports a failed eth_sendRawTransaction
   // as "the contract function reverted", so a node throttle arrives wearing the
