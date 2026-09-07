@@ -1,7 +1,8 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
 import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
-  ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, throttleBackoffMs, truncate } from './governance'
+  ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, throttleBackoffMs, truncate,
+  elapsedUnfrozen, electionBounds, electionCountdown, electionInstant, electionQuorumMet, electionQuorumRequired, electionStateOf, electionSubPhase, electionVerdict, formatRelative, normalizeElection, resolveEffectiveInstant } from './governance'
 
 describe('governance helpers', () => {
   it('extracts a safe title with a proposal fallback', () => {
@@ -235,5 +236,100 @@ describe('operation builder signature hygiene', () => {
     expect(encodeOperation({ ...base, signature: 'setAddresses(string[],address[]) ' }).selector).toBe(clean.selector)
     expect(encodeOperation({ ...base, signature: 'setAddresses(string[],address[])\u200B' }).selector).toBe(clean.selector)
     expect(clean.selector).toBe('0x7d69a892')
+  })
+})
+
+describe('election time model (CON-864)', () => {
+  // an election created at t=1000 with 7-day-ish offsets scaled down to seconds
+  const raw = {
+    kind: 1, cohortId: 2, seatsAtStake: 3, creationTime: 1000, fStart: 50,
+    registrationEnd: 100, nominationEnd: 200, voteStartOffset: 300, voteEndOffset: 400,
+    endorsementSnapshot: 0, quorumBps: 800, sealed_: false, settled: false, failed: false,
+    termEnd: 0, parentElection: 0n, turnout: 0n, rankingCommitment: `0x${'0'.repeat(64)}`,
+    minSupportBps: 100, refundFloorBps: 10, gesRegistry: '0x0000000000000000000000000000000000000001', slateCap: 64, alternateSlots: 3,
+  }
+  const election = normalizeElection(raw)
+
+  it('normalizes the mixed number/bigint struct viem decodes', () => {
+    expect(election.creationTime).toBe(1000n)
+    expect(election.fStart).toBe(50n)
+    expect(election.quorumBps).toBe(800)
+    expect(election.sealed).toBe(false)
+  })
+
+  it('counts unfrozen seconds as the contract does, floored at zero', () => {
+    // nothing frozen since the start: elapsed is wall time
+    expect(elapsedUnfrozen(1250n, election, 50n)).toBe(250n)
+    // 40 s frozen since the start: subtracted
+    expect(elapsedUnfrozen(1250n, election, 90n)).toBe(210n)
+    // more frozen than elapsed cannot go negative
+    expect(elapsedUnfrozen(1010n, election, 90n)).toBe(0n)
+  })
+
+  it('places a boundary at creation + offset + everything frozen since the start', () => {
+    expect(electionInstant(election, 300n, 50n)).toBe(1300n)
+    expect(electionInstant(election, 300n, 110n)).toBe(1360n)
+    expect(electionBounds(election, 50n)).toEqual({ registrationEnd: 1100n, nominationEnd: 1200n, voteStart: 1300n, voteEnd: 1400n })
+  })
+
+  it('mirrors computeState and inRegistration exactly at the offsets', () => {
+    // <= is the contract's comparison on every boundary
+    expect(electionStateOf(election, 200n)).toBe(1)
+    expect(electionStateOf(election, 201n)).toBe(2)
+    expect(electionStateOf(election, 300n)).toBe(2)
+    expect(electionStateOf(election, 301n)).toBe(3)
+    expect(electionStateOf(election, 400n)).toBe(3)
+    expect(electionStateOf(election, 401n)).toBe(4)
+    expect(electionStateOf({ ...election, failed: true }, 0n)).toBe(5)
+    expect(electionStateOf({ ...election, settled: true, failed: true }, 0n)).toBe(6)
+    expect(electionSubPhase(election, 100n)).toBe('registration')
+    expect(electionSubPhase(election, 101n)).toBe('endorsement')
+    // the crank closes registration, not the clock: a late crank keeps it open…
+    expect(electionSubPhase(election, 150n)).toBe('endorsement')
+    // …and an early snapshot ends it before the offset
+    expect(electionSubPhase({ ...election, endorsementSnapshot: 1050n }, 20n)).toBe('endorsement')
+    expect(electionSubPhase(election, 250n)).toBeUndefined()
+  })
+
+  it('resolves a past instant through the frozen history and skips the search when nothing froze', async () => {
+    const calls: bigint[] = []
+    // a 30-second freeze between t=1150 and t=1180, after fStart's 50
+    const frozenTotalAt = async (at: bigint) => { calls.push(at); return at < 1150n ? 50n : at < 1180n ? 50n + (at - 1150n) : 80n }
+    // vote start is 300 unfrozen seconds after creation; the freeze pushes it to 1330
+    expect(await resolveEffectiveInstant(election, 300n, 2000n, frozenTotalAt)).toBe(1330n)
+    expect(calls.length).toBeLessThanOrEqual(1 + 12) // one probe plus a bounded binary search
+    // a boundary still ahead is the projection: before the freeze it is
+    // creation + offset, after it the same plus the 30 s already frozen
+    expect(await resolveEffectiveInstant(election, 300n, 1100n, frozenTotalAt)).toBe(1300n)
+    expect(await resolveEffectiveInstant(election, 300n, 1200n, frozenTotalAt)).toBe(1330n)
+    calls.length = 0
+    expect(await resolveEffectiveInstant(election, 300n, 2000n, async (at) => { calls.push(at); return 50n })).toBe(1300n)
+    expect(calls.length).toBe(1)
+  })
+
+  it('floors the quorum and compares turnout exactly, as settle does', () => {
+    expect(electionQuorumRequired(800, 1_001n)).toBe(80n)
+    expect(electionQuorumMet(80n, 800, 1_001n)).toBe(false) // 800_000 < 800_800
+    expect(electionQuorumMet(81n, 800, 1_001n)).toBe(true)
+    expect(electionVerdict({ ...election, turnout: 81n }, 1_001n)).toBe('succeeded')
+    expect(electionVerdict({ ...election, turnout: 80n }, 1_001n)).toBe('failing')
+    expect(electionVerdict(election)).toBe('unknown')
+  })
+
+  it('counts down to the boundary that ends the current phase', () => {
+    const bounds = electionBounds(election, 50n)
+    expect(electionCountdown(1, 'registration', bounds)).toEqual({ label: 'Registration closes', at: 1100n })
+    expect(electionCountdown(1, 'endorsement', bounds)).toEqual({ label: 'Endorsement closes', at: 1200n })
+    expect(electionCountdown(2, undefined, bounds)).toEqual({ label: 'Voting opens', at: 1300n })
+    expect(electionCountdown(3, undefined, bounds)).toEqual({ label: 'Voting closes', at: 1400n })
+    expect(electionCountdown(4, undefined, bounds)).toBeUndefined()
+    expect(formatRelative(1400n, 1280n)).toBe('in 2 minutes')
+    expect(formatRelative(1280n, 1400n)).toBe('2 minutes ago')
+  })
+
+  it('names the sub-phase in the next action', () => {
+    expect(electionNextAction(1, 'registration')).toMatch(/nominate/i)
+    expect(electionNextAction(1, 'endorsement')).toMatch(/endorse/i)
+    expect(electionNextAction(1)).toBe('Nominate or endorse')
   })
 })

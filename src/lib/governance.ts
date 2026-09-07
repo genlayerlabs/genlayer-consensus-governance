@@ -12,7 +12,7 @@ import {
   type Address,
   type Hex,
 } from 'viem'
-import type { ClassParams, CouncilThresholds, Operation, ProposalCore, ProposalPostVote, ProposalRules, VoteTotals } from './types'
+import type { ClassParams, CouncilThresholds, ElectionBounds, ElectionDetails, ElectionSubPhase, Operation, ProposalCore, ProposalPostVote, ProposalRules, VoteTotals } from './types'
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 export const ZERO_HASH = `0x${'0'.repeat(64)}` as Hex
@@ -505,7 +505,9 @@ export function electionCranks(state: number): { fn: string; label: string }[] {
   }
 }
 
-export function electionNextAction(state: number): string {
+export function electionNextAction(state: number, subPhase?: ElectionSubPhase): string {
+  if (state === 1 && subPhase === 'registration') return 'Registration open — nominate or withdraw'
+  if (state === 1 && subPhase === 'endorsement') return 'Endorse up to three candidates'
   return [
     'Waiting to open',
     'Nominate or endorse',
@@ -515,6 +517,140 @@ export function electionNextAction(state: number): string {
     'Quorum was not met — a retry opens at a lower bar',
     'Complete',
   ][state] ?? 'Inspect contract state'
+}
+
+// ── Election time model (CON-864) ───────────────────────────────────────────
+//
+// The contract stores UNFROZEN offsets from creationTime and the clock's
+// frozen total at start (fStart). Every phase test is
+//   elapsed = (now - creationTime) - (frozenTotal(now) - fStart), floored at 0
+// compared with an offset. These helpers run the same arithmetic in the
+// browser, so a boundary shown here is the boundary the contract will enforce
+// — exact until another freeze begins, never a projection.
+
+export const ELECTION_KIND_RUNOFF = 4
+
+/** viem decodes uint48 as number and uint256 as bigint; the struct mixes both. */
+export function normalizeElection(raw: any): ElectionDetails {
+  return {
+    kind: Number(raw.kind), cohortId: Number(raw.cohortId), seatsAtStake: Number(raw.seatsAtStake),
+    creationTime: BigInt(raw.creationTime), fStart: BigInt(raw.fStart),
+    registrationEnd: BigInt(raw.registrationEnd), nominationEnd: BigInt(raw.nominationEnd),
+    voteStartOffset: BigInt(raw.voteStartOffset), voteEndOffset: BigInt(raw.voteEndOffset),
+    endorsementSnapshot: BigInt(raw.endorsementSnapshot), quorumBps: Number(raw.quorumBps),
+    sealed: Boolean(raw.sealed_), settled: Boolean(raw.settled), failed: Boolean(raw.failed),
+    termEnd: BigInt(raw.termEnd), parentElection: BigInt(raw.parentElection), turnout: BigInt(raw.turnout),
+    rankingCommitment: raw.rankingCommitment, minSupportBps: Number(raw.minSupportBps), refundFloorBps: Number(raw.refundFloorBps),
+    gesRegistry: raw.gesRegistry, slateCap: Number(raw.slateCap), alternateSlots: Number(raw.alternateSlots),
+  }
+}
+
+type ElectionClock = Pick<ElectionDetails, 'creationTime' | 'fStart'>
+
+/** Unfrozen seconds elapsed since the election started, as the contract counts them. */
+export function elapsedUnfrozen(now: bigint, election: ElectionClock, frozenTotalNow: bigint): bigint {
+  const stopped = frozenTotalNow - election.fStart
+  const wall = now - election.creationTime
+  return wall > stopped ? wall - stopped : 0n
+}
+
+/**
+ * The wall instant at which `offset` unfrozen seconds will have elapsed,
+ * assuming no FURTHER freeze: creation + offset + everything frozen so far.
+ * Exact for a boundary still ahead; for one already behind, use
+ * resolveEffectiveInstant, which accounts for freezes that ended before it.
+ */
+export function electionInstant(election: ElectionClock, offset: bigint, frozenTotalNow: bigint): bigint {
+  return election.creationTime + offset + (frozenTotalNow - election.fStart)
+}
+
+/**
+ * The EARLIEST wall instant at which `offset` unfrozen seconds had elapsed —
+ * the contract's closed-form binary search over the clock's frozenTotalAt
+ * history, ported so the vote-start snapshot (the GES denominator's key) is
+ * the one settle will use. A boundary still ahead returns the projection.
+ * With nothing frozen since the start the answer is creation + offset and
+ * no lookup is made.
+ */
+export async function resolveEffectiveInstant(election: ElectionClock, offset: bigint, now: bigint, frozenTotalAt: (at: bigint) => Promise<bigint>): Promise<bigint> {
+  const stoppedNow = (await frozenTotalAt(now)) - election.fStart
+  const projected = election.creationTime + offset + stoppedNow
+  if (projected > now || stoppedNow === 0n) return projected
+  let lo = election.creationTime + offset
+  let hi = projected
+  while (lo < hi) {
+    const mid = (lo + hi) / 2n
+    const stopped = (await frozenTotalAt(mid)) - election.fStart
+    if (mid - election.creationTime - stopped >= offset) hi = mid
+    else lo = mid + 1n
+  }
+  return lo
+}
+
+export function electionBounds(election: ElectionDetails, frozenTotalNow: bigint): ElectionBounds {
+  const at = (offset: bigint) => electionInstant(election, offset, frozenTotalNow)
+  return { registrationEnd: at(election.registrationEnd), nominationEnd: at(election.nominationEnd), voteStart: at(election.voteStartOffset), voteEnd: at(election.voteEndOffset) }
+}
+
+/** The state the contract's computeState returns for these stored fields and this elapsed time. */
+export function electionStateOf(election: ElectionDetails, elapsed: bigint): number {
+  if (election.settled) return 6
+  if (election.failed) return 5
+  if (elapsed <= election.nominationEnd) return 1
+  if (elapsed <= election.voteStartOffset) return 2
+  if (elapsed <= election.voteEndOffset) return 3
+  return 4
+}
+
+/**
+ * Nomination's two halves. Registration (nominate, withdraw) lasts until its
+ * offset AND until startEndorsement has run — the crank is what closes it, so
+ * a late crank keeps registration open past the offset, exactly as the
+ * contract's inRegistration reads it.
+ */
+export function electionSubPhase(election: ElectionDetails, elapsed: bigint): ElectionSubPhase | undefined {
+  if (electionStateOf(election, elapsed) !== 1) return undefined
+  if (election.endorsementSnapshot === 0n && elapsed <= election.registrationEnd) return 'registration'
+  return 'endorsement'
+}
+
+/** quorumBps × GES / 10 000, floored — the figure settle compares turnout against. */
+export function electionQuorumRequired(quorumBps: number, ges: bigint): bigint {
+  return (BigInt(quorumBps) * ges) / 10_000n
+}
+
+/** Exact cross-multiplication, as settle does it: no rounding on either side. */
+export function electionQuorumMet(turnout: bigint, quorumBps: number, ges: bigint): boolean {
+  return turnout * 10_000n >= BigInt(quorumBps) * ges
+}
+
+/** The next boundary worth counting down to, for the phase the election is in. */
+export function electionCountdown(state: number, subPhase: ElectionSubPhase | undefined, bounds: ElectionBounds): { label: string; at: bigint } | undefined {
+  switch (state) {
+    case 1: return subPhase === 'registration'
+      ? { label: 'Registration closes', at: bounds.registrationEnd }
+      : { label: 'Endorsement closes', at: bounds.nominationEnd }
+    case 2: return { label: 'Voting opens', at: bounds.voteStart }
+    case 3: return { label: 'Voting closes', at: bounds.voteEnd }
+    default: return undefined
+  }
+}
+
+/**
+ * What settle will record for an election past its vote end, given the
+ * turnout the struct already holds and the GES at the vote-start snapshot.
+ * Unknown until that GES is resolved — never guessed.
+ */
+export function electionVerdict(election: ElectionDetails, ges?: bigint): 'succeeded' | 'failing' | 'unknown' {
+  if (ges === undefined) return 'unknown'
+  return electionQuorumMet(election.turnout, election.quorumBps, ges) ? 'succeeded' : 'failing'
+}
+
+/** A relative time for a countdown: "in 4 minutes", "2 hours ago". */
+export function formatRelative(at: bigint, now: bigint): string {
+  const delta = at - now
+  if (delta === 0n) return 'now'
+  return delta > 0n ? `in ${formatDuration(delta)}` : `${formatDuration(-delta)} ago`
 }
 
 export function proposalNextAction(state: number, retryAllowed = false): string {

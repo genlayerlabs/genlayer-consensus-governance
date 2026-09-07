@@ -5,24 +5,37 @@ import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json
 import { Button } from '@/components/Button'
 import { InfoHint } from '@/components/InfoHint'
 import { TransactionButton } from '@/components/TransactionButton'
+import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { useCanCall } from '@/hooks/useCanCall'
 import { useElectionCandidates, useElections } from '@/hooks/useElections'
+import { useElectionParameterHistory } from '@/hooks/useElectionParameterHistory'
+import { useElectionParameters } from '@/hooks/useElectionParameters'
+import { useNow } from '@/hooks/useNow'
 import {
-  ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction,
-  formatDate, formatGen, shortAddress,
+  ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCountdown, electionCranks, electionNextAction, electionVerdict,
+  formatDate, formatDuration, formatGen, formatPercent, formatRelative, shortAddress,
 } from '@/lib/governance'
+import { describeMissing, isPresent } from '@/lib/optionalRead'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 import type { ElectionSummary } from '@/lib/types'
 
 const HINTS = {
   projection:
-    'Recorded by ElectionStarted as a wall-clock projection made when the election opened. A clock freeze shifts the real instant, and the offsets needed to recompute it are not readable, so treat this as indicative rather than a deadline.',
+    'Recorded by ElectionStarted as a wall-clock projection made when the election opened. A clock freeze shifts the real instant, and this deployment does not expose the offsets needed to recompute it, so treat this as indicative rather than a deadline.',
+  exact:
+    'Computed from the election\'s stored unfrozen offsets and the clock\'s frozen total — the same arithmetic the contract runs — so this is the boundary it will enforce. Only a freeze that begins after this reading can move it.',
   succeeded:
-    'Transient and derived: an election past its vote end reads Succeeded even when it will fail quorum at settle. Turnout, the effective quorum and the GES denominator are all unreadable, so the outcome genuinely cannot be predicted — settling is what decides it.',
+    'Transient and derived: an election past its vote end reads Succeeded even when it will fail quorum at settle. This deployment exposes neither turnout nor the effective quorum, so the outcome genuinely cannot be predicted — settling is what decides it.',
+  verdict:
+    'Succeeded is transient until settle runs. The turnout is the stored figure and the quorum is quorumBps × GES at the vote-start snapshot, resolved the way settle resolves it, so this is what settle will record.',
+  slateOnly:
+    'Only the sealed top set. A nominee who never reached it is invisible to this deployment\'s view surface, which is why the candidate roll below is rebuilt from logs.',
   slate:
-    'Only the sealed top set. A nominee who never reached it is invisible to the view surface entirely, which is why the candidate roll below is rebuilt from logs.',
+    'The sealed top set. The roll below is the contract\'s own nomination list, complete by construction.',
+  quorum:
+    'Turnout is the ballot weight recorded so far. The requirement is quorumBps of the GES at the vote-start snapshot, floored as settle floors it.',
   ballot:
     'Limited voting: one to three distinct slated candidates, each receiving your full snapshot weight. One ballot per account, no recasting.',
 }
@@ -31,8 +44,10 @@ function ElectionCard({ election, elections, onChanged }: { election: ElectionSu
   // Open by default: the slate, candidates and ballot are the page — hiding
   // them behind a click made an election look like a one-line stub.
   const { address } = useWallet()
+  const now = useNow()
   const [open, setOpen] = useState(true)
   const [picks, setPicks] = useState('')
+  const [order, setOrder] = useState<'nomination' | 'weight'>('nomination')
   const candidates = useElectionCandidates(open ? election.id : undefined, election.blockNumber)
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
@@ -46,44 +61,75 @@ function ElectionCard({ election, elections, onChanged }: { election: ElectionSu
     args: [election.id], account: address, enabled: open && election.state >= 2,
   })
 
+  const bounds = election.bounds
+  const countdown = bounds ? electionCountdown(election.state, election.subPhase, bounds) : undefined
+  const verdict = election.details ? electionVerdict(election.details, election.ges) : 'unknown'
+  const sorted = [...candidates.candidates].sort((a, b) => order === 'weight' || !candidates.complete
+    ? (a.weight === b.weight ? 0 : a.weight > b.weight ? -1 : 1)
+    : (a.nominationSeq ?? 0) - (b.nominationSeq ?? 0))
+
   return <article className="panel election-card">
     <div className="section-heading"><div>
       <div className="badges">
         <span className="pill">{ELECTION_STATE_NAMES[election.state] ?? election.state}</span>
         {election.kind !== undefined && <span className="pill">{ELECTION_KIND_NAMES[election.kind] ?? `Kind ${election.kind}`}</span>}
         {election.seatsAtStake !== undefined && <span className="pill">{election.seatsAtStake} seat{election.seatsAtStake === 1 ? '' : 's'}</span>}
+        {election.details && election.details.kind !== 0 && <span className="pill">Cohort {election.details.cohortId}</span>}
+        {election.details && election.details.parentElection !== 0n && <span className="pill">Retry of #{election.details.parentElection.toString()}</span>}
       </div>
       <h2>Election #{election.id.toString()}</h2>
-      <p className="muted">{electionNextAction(election.state)}
-        {election.state === 4 && <InfoHint text={HINTS.succeeded} />}</p>
+      <p className="muted">{electionNextAction(election.state, election.subPhase)}
+        {election.state === 4 && (election.details
+          ? verdict === 'unknown'
+            ? <> · outcome pending the snapshot GES<InfoHint text={HINTS.verdict} /></>
+            : verdict === 'succeeded'
+              ? <> · quorum reached — settling records Succeeded<InfoHint text={HINTS.verdict} /></>
+              : <> · below quorum — settling records Failed and opens a retry at {(election.details.quorumBps / 200).toFixed(1)}%<InfoHint text={HINTS.verdict} /></>
+          : <InfoHint text={HINTS.succeeded} />)}</p>
     </div>
     <Button variant="ghost" onClick={() => setOpen((value) => !value)}>{open ? 'Hide' : 'Details'}</Button></div>
 
     <div className="header-facts">
-      {election.voteStart !== undefined && <span><small>Voting opens<InfoHint text={HINTS.projection} /></small>{formatDate(election.voteStart)}</span>}
-      {election.voteEnd !== undefined && <span><small>Voting closes<InfoHint text={HINTS.projection} /></small>{formatDate(election.voteEnd)}</span>}
-      <span><small>Slate<InfoHint text={HINTS.slate} /></small>{election.slate.length}</span>
+      {countdown && <span><small>{countdown.label}<InfoHint text={HINTS.exact} /></small>{formatDate(countdown.at)}<small>{formatRelative(countdown.at, now)}</small></span>}
+      {bounds
+        ? <>
+          {election.state < 3 && <span><small>Voting opens<InfoHint text={HINTS.exact} /></small>{formatDate(bounds.voteStart)}</span>}
+          <span><small>Voting closes<InfoHint text={HINTS.exact} /></small>{formatDate(bounds.voteEnd)}</span>
+        </>
+        : <>
+          {election.voteStart !== undefined && <span><small>Voting opens<InfoHint text={HINTS.projection} /></small>{formatDate(election.voteStart)}</span>}
+          {election.voteEnd !== undefined && <span><small>Voting closes<InfoHint text={HINTS.projection} /></small>{formatDate(election.voteEnd)}</span>}
+        </>}
+      {election.turnout !== undefined && election.state >= 3 && <span><small>Turnout<InfoHint text={HINTS.quorum} /></small>
+        {formatGen(election.turnout)} GEN
+        {election.quorumRequired !== undefined && election.ges !== undefined && <small>of {formatGen(election.quorumRequired)} GEN required ({formatPercent(election.turnout, election.ges)} of GES, quorum {(election.quorumBps ?? 0) / 100}%)</small>}
+      </span>}
+      <span><small>Slate<InfoHint text={candidates.complete ? HINTS.slate : HINTS.slateOnly} /></small>{election.slate.length}</span>
       <span><small>Winners</small>{election.winners.length}</span>
       <span><small>Alternates</small>{election.alternates.length}</span>
+      {election.details && election.details.termEnd !== 0n && <span><small>Term ends</small>{formatDate(election.details.termEnd)}</span>}
       {election.transactionHash && <span><small>Started</small>
         <a className="tx-link" href={explorerTx(election.transactionHash)} target="_blank" rel="noreferrer">View on explorer</a></span>}
     </div>
 
     {open && <>
-      <div className="voter-list">{candidates.candidates.map((candidate) => <article key={candidate.address}>
+      {candidates.candidates.length > 1 && candidates.complete && <p className="hint">
+        Order: <button type="button" className="link-button" onClick={() => setOrder(order === 'weight' ? 'nomination' : 'weight')}>{order === 'weight' ? 'by weight' : 'as nominated'}</button></p>}
+      <div className="voter-list">{sorted.map((candidate) => <article key={candidate.address}>
         <span className={`vote-dot support-${candidate.withdrawn ? 0 : candidate.slated ? 1 : 2}`} />
         <a href={explorerAddress(candidate.address)} target="_blank" rel="noreferrer">{shortAddress(candidate.address)}</a>
         <b>{formatGen(candidate.weight)} GEN</b>
-        <span>{candidate.withdrawn ? 'Withdrawn' : candidate.slated ? 'Slated' : 'Nominated'}</span>
-        <span>Bond {formatGen(candidate.bond)} GEN</span>
+        <span>{candidate.withdrawn ? 'Withdrawn' : candidate.slated ? 'Slated' : 'Nominated'}{candidate.autoNominated ? ' · incumbent' : ''}</span>
+        <span>{candidate.autoNominated ? 'No bond' : candidate.bondClaimed ? `Bond ${candidate.withdrawn ? 'refunded' : 'claimed'}` : `Bond ${formatGen(candidate.bond)} GEN`}</span>
         <p>{election.winners.some((winner) => winner.toLowerCase() === candidate.address.toLowerCase())
           ? 'Elected'
           : election.alternates.some((alternate) => alternate.toLowerCase() === candidate.address.toLowerCase())
             ? 'Alternate'
             : 'Not seated'}</p>
+        <CandidateManifesto elections={elections} electionId={election.id} candidate={candidate.address} />
       </article>)}
       {!candidates.loading && candidates.candidates.length === 0 && <div className="empty inline">
-        <p>No candidates found in the scanned range.</p></div>}
+        <p>{candidates.complete ? 'No candidates.' : 'No candidates found in the scanned range.'}</p></div>}
       </div>
 
       {cranks.some((crank) => crank.fn === 'castBallot') && <div className="form-grid">
@@ -111,16 +157,81 @@ function ElectionCard({ election, elections, onChanged }: { election: ElectionSu
           onConfirmed={() => void candidates.refresh()}>Claim bond</TransactionButton>}
         {cranks.length === 0 && !canClaim && <p className="hint">
           {election.state < 2
-            ? 'Nothing to crank in this phase — registration is open and needs no transaction.'
+            ? 'Nothing to crank in this phase.'
             : 'Nothing left to do here: this election is recorded, and this account has no bond to claim.'}</p>}
+        {election.state === 1 && election.subPhase === 'registration' && <p className="hint">
+          Registration is open: <code>startEndorsement</code> closes it once the registration offset has elapsed, and
+          endorsement runs until the nomination offset.</p>}
       </div>
     </>}
   </article>
 }
 
+/** The on-chain manifesto, read on demand: it can be 16 KB, and most visitors never open it. */
+function CandidateManifesto({ elections, electionId, candidate }: { elections?: Address; electionId: bigint; candidate: Address }) {
+  const [text, setText] = useState<string>()
+  const [failed, setFailed] = useState(false)
+  const load = async () => {
+    if (text !== undefined || !elections) return
+    try {
+      setText(await publicClient.readContract({ address: elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'candidateManifesto', args: [electionId, candidate] } as never) as string)
+    } catch { setFailed(true) }
+  }
+  return <details className="manifesto" onToggle={(event) => { if ((event.target as HTMLDetailsElement).open) void load() }}>
+    <summary>Manifesto</summary>
+    {failed ? <p className="hint">The manifesto could not be read.</p> : text === undefined ? <p className="hint">Reading…</p> : text.trim() ? <pre className="raw-text">{text}</pre> : <p className="hint">Empty manifesto.</p>}
+  </details>
+}
+
+function bps(value: number) { return `${value / 100}%` }
+
+function ParametersPanel() {
+  const parameters = useElectionParameters()
+  const history = useElectionParameterHistory()
+  const economics = parameters.economics
+  return <section className="panel">
+    <div className="section-heading"><div><h2>Election parameters</h2>
+      <p className="muted">The live §8 values every election is measured against. A running election keeps the slate, floors and quorum it snapshotted at its start.</p></div>
+      <Button variant="ghost" onClick={() => void parameters.refresh()}><RefreshCw size={15} /> Refresh</Button></div>
+    <div className="header-facts">
+      {isPresent(economics)
+        ? <>
+          <span><small>Candidate bond</small>{formatGen(economics.value.candidateBond)} GEN<small>refundable</small></span>
+          <span><small>Registration fee</small>{formatGen(economics.value.registrationFee)} GEN<small>non-refundable</small></span>
+          <span><small>Manifesto storage</small>{formatGen(economics.value.storageFeePerByte, 6)} GEN / byte<small>beyond the first 1,024 bytes</small></span>
+        </>
+        : <span><small>Nomination cost</small><em className="muted">{describeMissing(economics, 'The nomination cost')}</em></span>}
+      {isPresent(parameters.periods)
+        ? <span><small>Phases</small>{formatDuration(parameters.periods.value.registration)} · {formatDuration(parameters.periods.value.endorsement)} · {formatDuration(parameters.periods.value.preparation)} · {formatDuration(parameters.periods.value.voting)}<small>registration · endorsement · preparation · voting</small></span>
+        : <span><small>Phases</small><em className="muted">{describeMissing(parameters.periods, 'The phase lengths')}</em></span>}
+      {isPresent(parameters.quorums)
+        ? <span><small>Quorum</small>{bps(parameters.quorums.value.quorumBps)} of GES<small>floor {bps(parameters.quorums.value.quorumFloorBps)} · seat floor {bps(parameters.quorums.value.minSupportBps)} · refund floor {bps(parameters.quorums.value.refundFloorBps)}</small></span>
+        : <span><small>Quorum</small><em className="muted">{describeMissing(parameters.quorums, 'The quorum')}</em></span>}
+      {isPresent(parameters.termLength)
+        ? <span><small>Term</small>{formatDuration(parameters.termLength.value)}</span>
+        : <span><small>Term</small><em className="muted">{describeMissing(parameters.termLength, 'The term length')}</em></span>}
+      {parameters.slate && <span><small>Slate</small>{parameters.slate.slateCap} candidates<small>{parameters.slate.alternates} alternate{parameters.slate.alternates === 1 ? '' : 's'}</small></span>}
+      {parameters.recall && <span><small>Recall</small>{formatDuration(parameters.recall.registration)} · {formatDuration(parameters.recall.endorsement)} · {formatDuration(parameters.recall.preparation)} · {formatDuration(parameters.recall.voting)}<small>cooldown {formatDuration(parameters.recall.cooldown)} · ratify grace {formatDuration(parameters.recall.ratifyGrace)}</small></span>}
+    </div>
+    <details onToggle={(event) => { if ((event.target as HTMLDetailsElement).open && !history.scanned && !history.loading) void history.scan() }}>
+      <summary>Parameter changes</summary>
+      <p className="hint">Every setter emits the values it stored, so a past parameter can be recovered from history. Scanned from the contract's creation block on demand; a deployment whose setters predate the events shows nothing here.</p>
+      {history.progress && <p className="hint">{history.progress}</p>}
+      {history.error && <div className="error-box">{history.partial ? 'The scan stopped early; the rows below are what it found. ' : ''}{history.error} <Button variant="ghost" onClick={() => void history.scan()}>Retry</Button></div>}
+      {history.scanned && history.changes.length === 0 && <p className="hint">No parameter changes have been emitted on this deployment.</p>}
+      {history.changes.length > 0 && <div className="voter-list">{history.changes.map((change) => <article key={`${change.transactionHash}:${change.event}`}>
+        <b>{change.event.replace(/Set$/, '')}</b>
+        <span>{Object.entries(change.values).map(([key, value]) => `${key} = ${value}`).join(' · ')}</span>
+        <span>{change.timestamp !== undefined ? formatDate(change.timestamp) : `block ${change.blockNumber.toString()}`}</span>
+        <a className="tx-link" href={explorerTx(change.transactionHash)} target="_blank" rel="noreferrer">View on explorer</a>
+      </article>)}</div>}
+    </details>
+  </section>
+}
+
 export function ElectionsPage() {
   const { currentSet } = useContracts()
-  const { elections, loading, error, refresh } = useElections()
+  const { elections, loading, error, source, refresh } = useElections()
 
   if (!currentSet?.elections) {
     return <div className="page"><section className="empty"><h1>Select a deployment</h1>
@@ -134,9 +245,11 @@ export function ElectionsPage() {
       <p>Bootstrap, cohort, special, recall and runoff elections, read directly from chain.</p>
     </div><Button variant="ghost" onClick={() => void refresh()}><RefreshCw size={15} /> Refresh</Button></div>
 
+    <ParametersPanel />
 
     {error && <div className="error-box">{error}</div>}
     {loading && elections.length === 0 && <div className="loading-state">Reading elections directly from chain…</div>}
+    {source === 'unknown' && elections.length > 0 && <div className="error-box">The election struct could not be read from the node, so phase boundaries below are the projections recorded at start. Refresh to try again.</div>}
 
     {!loading && elections.length === 0 && <section className="empty">
       <h2>No elections yet</h2>

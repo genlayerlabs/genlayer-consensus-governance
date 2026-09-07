@@ -7,7 +7,9 @@ export interface ScanProgress { from: bigint; to: bigint; head: bigint; requests
 export async function scanLogs(params: {
   address: Address
   abi: Abi
-  eventName: ContractEventName<Abi>
+  eventName?: ContractEventName<Abi>
+  /** several events of the same contract in ONE filter (topic OR), where `eventName` would cost one pass each */
+  eventNames?: string[]
   args?: Record<string, unknown>
   fromBlock?: bigint
   toBlock?: bigint
@@ -27,10 +29,12 @@ export async function scanLogs(params: {
   while (from <= head) {
     const to = from + chunk - 1n > head ? head : from + chunk - 1n
     try {
+      const entries = params.abi as any[]
       const page = await publicClient.getLogs({
         address: params.address,
-        event: (params.abi as any).find((entry: any) => entry.type === 'event' && entry.name === params.eventName),
-        args: params.args,
+        ...(params.eventNames
+          ? { events: entries.filter((entry) => entry.type === 'event' && params.eventNames!.includes(entry.name)) }
+          : { event: entries.find((entry) => entry.type === 'event' && entry.name === params.eventName), args: params.args }),
         fromBlock: from as BlockNumber,
         toBlock: to as BlockNumber,
       } as GetLogsParameters)
@@ -99,4 +103,21 @@ export function explorerTx(hash: Hex) {
 
 export function explorerAddress(address: Address) {
   return `${deploymentConfig.explorerUrl}/address/${address}`
+}
+
+// Block timestamps are immutable, so a block read once is known for the tab.
+const blockTimes = new Map<string, bigint>()
+
+/** The timestamp of `blockNumber`, memoised; undefined when the node cannot answer. */
+export async function blockTimestamp(blockNumber: bigint): Promise<bigint | undefined> {
+  const key = blockNumber.toString()
+  const known = blockTimes.get(key)
+  if (known !== undefined) return known
+  try {
+    const block = await publicClient.getBlock({ blockNumber })
+    blockTimes.set(key, block.timestamp)
+    return block.timestamp
+  } catch {
+    return undefined
+  }
 }
