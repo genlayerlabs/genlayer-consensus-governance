@@ -1,6 +1,6 @@
 import { parseEther } from 'viem'
 import { describe, expect, it } from 'vitest'
-import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
+import { ACTION_TYPE_NAMES, actionThreshold, ELECTION_KIND_NAMES, ELECTION_STATE_NAMES, electionCranks, electionGuide, electionNextAction, describeActionData, encodeActionData, descriptionHash, encodeOperation, formatDate, formatGen, preserveAlignedBlocks, voteVerdict, payloadHash, titleFromDescription, voteChecks, ZERO_HASH,
   ACTION_PROPOSAL_STATES, actionProposalId, actionProposalRequirement, errorMessage, throttleBackoffMs, truncate,
   isStaleRoster, MANIFESTO_MAX_BYTES, manifestoWithinLimit, nominationCost, wrongPaymentRequired,
   elapsedUnfrozen, electionBounds, electionCountdown, electionInstant, electionQuorumMet, electionQuorumRequired, electionStateOf, electionSubPhase, electionVerdict, formatRelative, normalizeElection, resolveEffectiveInstant } from './governance'
@@ -376,5 +376,45 @@ describe('stale roster (CON-864 #4)', () => {
     // unknown on either side is not stale — never hide Approve on a guess
     expect(isStaleRoster(0, undefined, 2n)).toBe(false)
     expect(isStaleRoster(0, 1n, undefined)).toBe(false)
+  })
+})
+
+describe('electionGuide', () => {
+  const current = (input: Parameters<typeof electionGuide>[0]) => electionGuide(input).find((step) => step.status === 'current')?.key
+  const base = { endorsementOpened: false, sealed: false, slateEmpty: true }
+
+  it('walks the steps in the order the contract accepts them', () => {
+    expect(current({ ...base, state: 1, subPhase: 'registration' })).toBe('nominate')
+    // past the registration offset the crank is what closes registration
+    expect(current({ ...base, state: 1, subPhase: 'endorsement' })).toBe('openEndorsement')
+    expect(current({ ...base, state: 1, subPhase: 'endorsement', endorsementOpened: true })).toBe('endorse')
+    expect(current({ ...base, state: 2, endorsementOpened: true })).toBe('seal')
+    // sealed early: nothing to do until voting opens
+    expect(current({ ...base, state: 2, endorsementOpened: true, sealed: true })).toBe('vote')
+    expect(current({ ...base, state: 3, sealed: true })).toBe('vote')
+    expect(current({ ...base, state: 4 })).toBe('settle')
+    expect(current({ ...base, state: 5 })).toBe('result')
+    expect(current({ ...base, state: 6 })).toBe('result')
+  })
+
+  it('marks earlier steps done and later ones upcoming', () => {
+    const steps = electionGuide({ ...base, state: 3, endorsementOpened: true, sealed: true, slateEmpty: false })
+    expect(steps.map((step) => step.status)).toEqual(['done', 'done', 'done', 'done', 'current', 'upcoming', 'upcoming'])
+  })
+
+  it('says what an empty slate means at seal and at vote', () => {
+    expect(electionGuide({ ...base, state: 2, endorsementOpened: true })[3].instruction).toMatch(/empty slate/)
+    expect(electionGuide({ ...base, state: 3, slateEmpty: false })[4].instruction).toMatch(/Tick one to three/)
+    expect(electionGuide({ ...base, state: 3 })[4].instruction).toMatch(/every ballot reverts/)
+  })
+
+  it('skips nomination and endorsement for a runoff, whose candidates are carried over', () => {
+    const steps = electionGuide({ ...base, state: 1, kind: 4, slateEmpty: false })
+    expect(steps.slice(0, 3).map((step) => step.status)).toEqual(['skipped', 'skipped', 'skipped'])
+    expect(steps[3].status).toBe('current')
+  })
+
+  it('names the failed outcome and the retry', () => {
+    expect(electionGuide({ ...base, state: 5 })[6].instruction).toMatch(/halved quorum/)
   })
 })

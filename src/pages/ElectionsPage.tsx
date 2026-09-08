@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckSquare, RefreshCw, Square } from 'lucide-react'
+import { Check, CheckSquare, Circle, Minus, RefreshCw, Square } from 'lucide-react'
 import type { Address } from 'viem'
 import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json'
 import { Button } from '@/components/Button'
@@ -19,7 +19,7 @@ import { IdentityPicker } from '@/components/IdentityPicker'
 import { ABI_BY_KEY } from '@/lib/abis'
 import { ballotRoute } from '@/lib/identity'
 import {
-  ELECTION_KIND_NAMES, ELECTION_KIND_RUNOFF, ELECTION_STATE_NAMES, electionCountdown, electionCranks, electionNextAction, electionVerdict,
+  COHORT_NAMES, ELECTION_KIND_NAMES, ELECTION_KIND_RUNOFF, ELECTION_STATE_NAMES, electionCountdown, electionCranks, electionGuide, electionNextAction, electionVerdict,
   formatDate, formatDuration, formatGen, formatPercent, formatRelative, shortAddress, type NominationEconomics,
 } from '@/lib/governance'
 import { describeMissing, isPresent } from '@/lib/optionalRead'
@@ -27,6 +27,8 @@ import { explorerAddress, explorerTx } from '@/lib/rpc'
 import type { ElectionCandidate, ElectionSummary } from '@/lib/types'
 
 const HINTS = {
+  cohort:
+    'Which seats are at stake decides which sitting members may run. Bootstrap puts every seat at stake, so any sitting member may stand. A Cohort election covers exactly that cohort\'s seats, so only members of the expiring cohort may run again. Special and Recall elections target seats no sitting member holds, so no sitting member may register. Anyone else who is funded, not excluded and not in a recall cooldown may nominate in any of them.',
   projection:
     'Recorded by ElectionStarted as a wall-clock projection made when the election opened. A clock freeze shifts the real instant, and this deployment does not expose the offsets needed to recompute it, so treat this as indicative rather than a deadline.',
   exact:
@@ -119,6 +121,9 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
 
     <div className="header-facts">
       {countdown && <span><small>{countdown.label}<InfoHint text={HINTS.exact} /></small>{formatDate(countdown.at)}<small>{formatRelative(countdown.at, now)}</small></span>}
+      {election.details && <span><small>Cohort<InfoHint text={HINTS.cohort} /></small>
+        {election.details.kind === 1 ? `Cohort ${COHORT_NAMES[election.details.cohortId] ?? election.details.cohortId}` : election.details.kind === 0 ? 'All seats' : `Cohort ${COHORT_NAMES[election.details.cohortId] ?? election.details.cohortId} seats`}
+        <small>{election.details.kind === 0 ? 'any sitting member may run' : election.details.kind === 1 ? 'only its sitting members may run again' : 'no sitting member may register'}</small></span>}
       {bounds
         ? <>
           {election.state < 3 && <span><small>Voting opens<InfoHint text={HINTS.exact} /></small>{formatDate(bounds.voteStart)}</span>}
@@ -141,6 +146,10 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
     </div>
 
     {open && <>
+      <ElectionGuide steps={electionGuide({
+        state: election.state, subPhase: election.subPhase, kind: election.kind,
+        endorsementOpened, sealed: election.details?.sealed ?? false, slateEmpty: election.slate.length === 0,
+      })} />
       {candidates.candidates.length > 1 && candidates.complete && <p className="hint">
         Order: <button type="button" className="link-button" onClick={() => setOrder(order === 'weight' ? 'nomination' : 'weight')}>{order === 'weight' ? 'by weight' : 'as nominated'}</button></p>}
       <div className="voter-list">{sorted.map((candidate) => <CandidateRow key={candidate.address} candidate={candidate} election={election} elections={elections}
@@ -212,6 +221,19 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
 }
 
 /** The on-chain manifesto, read on demand: it can be 16 KB, and most visitors never open it. */
+/**
+ * What to do next, as a checklist: the badge says where the election is, this
+ * says what a person should do about it. Only the current step carries its
+ * instruction; the rest are titles, so the list stays a glance rather than a
+ * manual.
+ */
+function ElectionGuide({ steps }: { steps: ReturnType<typeof electionGuide> }) {
+  return <ol className="timeline election-guide">{steps.map((step) => <li key={step.key} className={step.status}>
+    <span>{step.status === 'done' ? <Check size={13} /> : step.status === 'skipped' ? <Minus size={13} /> : <Circle size={13} />}</span>
+    <div><b>{step.title}</b>{step.status === 'current' && <small>{step.instruction}</small>}</div>
+  </li>)}</ol>
+}
+
 function CandidateRow({ candidate, election, elections, mayEndorse, mayWithdraw, pick, onChanged }: {
   candidate: ElectionCandidate; election: ElectionSummary; elections?: Address; mayEndorse: boolean; mayWithdraw: boolean
   /** Present during Voting: the row's place in the ballot being composed. */
