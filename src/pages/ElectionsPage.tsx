@@ -205,7 +205,7 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
           onConfirmed={() => void candidates.refresh()}>Claim bond</TransactionButton>}
         {cranks.length === 0 && !canClaim && <p className="hint">
           {election.state < 2
-            ? 'Nothing to crank in this phase.'
+            ? 'No transaction is needed in this phase.'
             : 'Nothing left to do here: this election is recorded, and this account has no bond to claim.'}</p>}
         {election.state === 1 && election.subPhase === 'registration' && <p className="hint">
           Registration is open: <code>startEndorsement</code> closes it once the registration offset has elapsed, and
@@ -214,7 +214,7 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
           The registration offset has elapsed but endorsement is not open yet: anyone may open it, and endorsing
           becomes possible right after.</p>}
         {endorsementOpened && election.state === 1 && <p className="hint">
-          Endorsement is open; nothing else to crank until the nomination offset elapses and the slate can be sealed.</p>}
+          Endorsement is open. Nothing else needs a transaction until the endorsement window closes and the slate can be sealed.</p>}
       </div>
     </>}
   </article>
