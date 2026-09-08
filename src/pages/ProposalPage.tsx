@@ -134,7 +134,10 @@ export function ProposalPage() {
 
   // Hooks must run before the early returns below, so this sits with the other
   // hooks rather than beside the derived values that consume it.
-  const identities = useVoterIdentities({ proposalId: id, snapshot: proposal?.voteStart })
+  // The snapshot is the vote-start instant, which is still AHEAD while the
+  // proposal is Pending: getPastVotesForGovernance reverts FutureLookup for
+  // it. Until voting opens, list the identities with their live weight.
+  const identities = useVoterIdentities({ proposalId: id, snapshot: proposal && proposal.state >= 1 ? proposal.voteStart : undefined })
 
   const allFilteredVoters = useMemo(() => voters.records.filter((record) => voterFilter === 'all' || record.support === Number(voterFilter)), [voters.records, voterFilter])
   const filteredVoters = allFilteredVoters.slice(0, voters.visibleCount)
