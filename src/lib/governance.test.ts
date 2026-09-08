@@ -216,6 +216,8 @@ describe('governance helpers', () => {
     // neither a revert nor a simulation would catch a duplicate — the phase is
     // the only thing that can withhold the button.
     expect(electionCranks(1).map((crank) => crank.fn)).toEqual(['startEndorsement'])
+    // and once the snapshot is set the crank is spent, so the button goes
+    expect(electionCranks(1, true)).toEqual([])
     expect(electionCranks(2).map((crank) => crank.fn)).toEqual(['sealSlate'])
     expect(electionCranks(3).map((crank) => crank.fn)).toEqual(['castBallot'])
     // Succeeded is transient, so it settles

@@ -63,7 +63,8 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
   const ballotIdentity = identities.identities.find((entry) => entry.kind !== 'eoa' && entry.address === ballotAs) ?? (address ? { kind: 'eoa' as const, address } : undefined)
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
-  const cranks = electionCranks(election.state)
+  const endorsementOpened = election.details !== undefined && election.details.endorsementSnapshot !== 0n
+  const cranks = electionCranks(election.state, endorsementOpened)
   // claimBond reverts NothingToClaim for anyone who did not nominate, which is
   // almost everyone looking at the page. Simulating it is the only way to know:
   // the claimable set is not readable, and it opens as soon as a slate is
@@ -75,9 +76,12 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
 
   // Registration is knowable only with the struct; endorsement is offered
   // whenever Nomination is not provably still in registration, and the
-  // contract's EndorsementNotStarted says the rest.
+  // contract's EndorsementNotStarted says the rest. With the struct, a zero
+  // snapshot past the registration offset means the crank has not run yet:
+  // endorse would revert, so the row buttons wait for Open endorsement.
   const inRegistration = election.state === 1 && election.subPhase === 'registration'
-  const mayEndorse = election.state === 1 && election.subPhase !== 'registration' && election.kind !== ELECTION_KIND_RUNOFF
+  const awaitingCrank = election.state === 1 && election.subPhase === 'endorsement' && election.details !== undefined && !endorsementOpened
+  const mayEndorse = election.state === 1 && election.subPhase !== 'registration' && election.kind !== ELECTION_KIND_RUNOFF && !awaitingCrank
   const own = (candidate: Address) => !!address && candidate.toLowerCase() === address.toLowerCase()
   const bounds = election.bounds
   const countdown = bounds ? electionCountdown(election.state, election.subPhase, bounds) : undefined
@@ -194,6 +198,11 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
         {election.state === 1 && election.subPhase === 'registration' && <p className="hint">
           Registration is open: <code>startEndorsement</code> closes it once the registration offset has elapsed, and
           endorsement runs until the nomination offset.</p>}
+        {awaitingCrank && <p className="hint">
+          The registration offset has elapsed but endorsement is not open yet: anyone may open it, and endorsing
+          becomes possible right after.</p>}
+        {endorsementOpened && election.state === 1 && <p className="hint">
+          Endorsement is open; nothing else to crank until the nomination offset elapses and the slate can be sealed.</p>}
       </div>
     </>}
   </article>

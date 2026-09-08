@@ -492,9 +492,11 @@ export const ELECTION_KIND_NAMES = ['Bootstrap', 'Cohort', 'Special', 'Recall', 
  * ElectionState: 0 Scheduled, 1 Nomination, 2 Preparation, 3 Voting,
  * 4 Succeeded, 5 Failed, 6 Settled.
  */
-export function electionCranks(state: number): { fn: string; label: string }[] {
+export function electionCranks(state: number, endorsementOpened = false): { fn: string; label: string }[] {
   switch (state) {
-    case 1: return [{ fn: 'startEndorsement', label: 'Open endorsement' }]
+    // Once the snapshot is set the crank has nothing left to do, so the
+    // button goes away instead of inviting a second (silently successful) call.
+    case 1: return endorsementOpened ? [] : [{ fn: 'startEndorsement', label: 'Open endorsement' }]
     case 2: return [{ fn: 'sealSlate', label: 'Seal slate' }]
     case 3: return [{ fn: 'castBallot', label: 'Cast ballot' }]
     // Succeeded ONLY. computeState returns Failed exclusively once
