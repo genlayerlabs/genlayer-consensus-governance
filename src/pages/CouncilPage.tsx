@@ -21,6 +21,8 @@ import {
 import { explorerAddress, explorerTx } from '@/lib/rpc'
 
 const HINTS = {
+  elected:
+    'Installed by the election but not yet activated. The member sends activateSeat within the activation window (30 days from installation on this deployment). Until then the seat counts toward no threshold and cannot approve actions: an unactivated seat is exactly as safe as a vacancy. Once the window lapses anyone may expire the seat into a vacancy, so a lost key cannot hold it forever.',
   membershipVersion:
     'Bumped by any seat or threshold change. A non-emergency action is bound to the version it was created under, so a bump silently invalidates every open one — they must be re-created, not re-approved. Where the deployment exposes actionMeta, open actions bound to an older version are flagged "Stale roster" below.',
   actionable:
@@ -316,6 +318,9 @@ export function CouncilPage() {
       <section className="panel">
         <div className="section-heading"><div><p className="eyebrow">Roster</p><h2>Members</h2></div>
           <span>{overview.members.filter((m) => m.status !== 3).length} seated</span></div>
+        {address && overview.members.some((member) => member.status === 0 && member.address.toLowerCase() === address.toLowerCase()) && <div className="role-note"><AlertTriangle size={18} /><p><b>Your seat awaits activation</b>
+          You were installed by an election but the seat is not active yet: it counts toward no threshold and cannot approve
+          actions until you send Activate seat below, within the activation window.</p></div>}
         <div className="voter-list">{overview.members.map((member) => {
           const vacant = member.status === 3
           return <article key={member.seat}>
@@ -324,9 +329,16 @@ export function CouncilPage() {
             <b>Seat {member.seat} · Cohort {COHORT_NAMES[member.cohortId] ?? member.cohortId}</b>
             <span className={`seat-status support-${member.status === 1 ? 1 : member.status === 2 ? 2 : 0}`}>
               {SEAT_STATUS_NAMES[member.status] ?? `Status ${member.status}`}
+              {member.status === 0 && <InfoHint text={HINTS.elected} />}
               {member.status === 2 && <InfoHint text={HINTS.holdOver} />}</span>
             <span>{member.termEnd === 0 ? 'Genesis seat' : `Term ends ${formatDate(member.termEnd)}`}</span>
             <p>{member.electionId === 0n ? 'Appointed at genesis' : `Elected in election #${member.electionId}`}</p>
+            {/* The activation handshake is the member's own step and exists
+                nowhere else on the page: without the button an elected
+                member could only sit and wait to be expired. */}
+            {member.status === 0 && address && member.address.toLowerCase() === address.toLowerCase() && <TransactionButton
+              address={currentSet.council} abi={SecurityCouncilABI as never} functionName="activateSeat" args={[]} variant="ghost"
+              onConfirmed={() => void refresh()}>Activate seat</TransactionButton>}
           </article>
         })}</div>
       </section>
