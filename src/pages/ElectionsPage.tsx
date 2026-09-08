@@ -222,7 +222,7 @@ function ParametersPanel({ parameters }: { parameters: ElectionParameters }) {
   const economics = parameters.economics
   return <section className="panel">
     <div className="section-heading"><div><h2>Election parameters</h2>
-      <p className="muted">The live §8 values every election is measured against. A running election keeps the slate, floors and quorum it snapshotted at its start.</p></div>
+      <p className="muted">The live values every election is measured against. A running election keeps the slate, floors and quorum it snapshotted at its start.</p></div>
       <Button variant="ghost" onClick={() => void parameters.refresh()}><RefreshCw size={15} /> Refresh</Button></div>
     <div className="header-facts">
       {isPresent(economics)
@@ -294,7 +294,7 @@ export function ElectionsPage() {
 
     {!anyLive && elections.length > 0 && (startDue
       ? <section className="panel"><div className="section-heading"><div><p className="eyebrow">Due now</p><h2>An election can be started</h2>
-        <p className="muted">{elections[0]?.state === 5 ? `Election #${elections[0].id} failed quorum, so its retry is due at a halved quorum.` : 'A cohort expiry, special-election trigger, queued recall or the bootstrap gate has arrived.'} Anyone may open it; the transaction pays only gas.</p></div>
+        <p className="muted">{elections[0]?.state === 5 ? `Election #${elections[0].id} failed quorum, so its retry is due at a halved quorum.` : 'A cohort expiry, special-election trigger, queued recall or the bootstrap gate has arrived.'} Anyone may open it.</p></div>
         <TransactionButton address={currentSet.elections} abi={GovernanceCouncilElectionsABI as never} functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start election</TransactionButton></div></section>
       : startDue === false && startRefusal && <p className="hint">No election is due: {startRefusal}</p>)}
 
