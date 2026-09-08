@@ -44,6 +44,8 @@ export function CreateProposalPage() {
   const [balance, setBalance] = useState<bigint>()
   const [preflight, setPreflight] = useState<'idle' | 'checking' | 'ready' | 'failed'>('idle')
   const [preflightError, setPreflightError] = useState('')
+  /** what executing the payload would cost, measured from the executor at the current head */
+  const [executionGas, setExecutionGas] = useState<{ total: bigint; perOperation: { gas?: bigint; error?: string }[] }>()
   const [submitting, setSubmitting] = useState(false)
   const [transactionHash, setTransactionHash] = useState<Hex>()
 
@@ -113,7 +115,21 @@ export function CreateProposalPage() {
     try {
       await publicClient.simulateContract({ address: contracts.voting, abi: GovernanceVotingABI, functionName: 'propose', args: [classId, operations, description, timelockValue, retryAllowed], account: address, value: summary.bond } as any)
       setPreflight('ready')
-    } catch (error) { setPreflight('failed'); setPreflightError(errorMessage(error)) }
+    } catch (error) { setPreflight('failed'); setPreflightError(errorMessage(error)); setExecutionGas(undefined); return }
+    // The proposal is also measured for what it will cost to EXECUTE: each
+    // operation is estimated as the executor would call it. The figure is
+    // informative — the state an operation depends on can change before
+    // execution — but a payload that already reverts, or one large enough to
+    // outgrow a wallet's estimate, is worth knowing about before the bond.
+    const executor = contracts.currentSet?.executor
+    if (!executor || operations.length === 0) { setExecutionGas(undefined); return }
+    const perOperation = await Promise.all(operations.map(async (operation) => {
+      try {
+        const gas = await publicClient.estimateGas({ account: executor, to: operation.target, data: `${operation.selector}${operation.args.slice(2)}` as `0x${string}`, value: operation.value })
+        return { gas }
+      } catch (error) { return { error: errorMessage(error).split('\n')[0] } }
+    }))
+    setExecutionGas({ total: perOperation.reduce((sum, entry) => sum + (entry.gas ?? 0n), 0n), perOperation })
   }
 
   const submit = async () => {
@@ -150,7 +166,10 @@ export function CreateProposalPage() {
     </div>
 
     <aside className="builder-aside"><section className="panel sticky"><p className="eyebrow">Submission readiness</p><h2>On-chain criteria</h2><ul className="criteria"><Criterion met={walletReady}>{walletReady ? `Wallet ${shortAddress(address)}` : 'Connect wallet on the configured network'}</Criterion><Criterion met={governanceReady}>Governance active; no freeze, maintenance, or migration</Criterion><Criterion met={!!summary && summary.ges > 0n} pending={account.loading}>Epoch/GES initialized (final epoch check occurs in eth_call)</Criterion><Criterion met={!!summary && summary.votingPower >= summary.requiredPower} pending={account.loading}>{summary ? `${formatGen(summary.votingPower)} / ${formatGen(summary.requiredPower)} GEN proposal power` : 'At least 1% of GES voting power'}</Criterion><Criterion met={!!summary && (balance ?? 0n) >= summary.bond} pending={balance === undefined}>{summary ? `${formatGen(summary.bond)} GEN exact bond available` : 'Exact 0.1% GES bond available'}</Criterion><Criterion met={!!summary && summary.liveProposals < 2n}>{summary ? `${summary.liveProposals} of 2 live proposals` : 'Fewer than two live proposals'}</Criterion><Criterion met={cooldown <= now}>No direct or delegate proposal-spam cooldown</Criterion><Criterion met={!!selectedClass}>Selected class exists and is votable</Criterion><Criterion met={timelockValid}>Timelock is within class range</Criterion><Criterion met={sizesValid}>Description and payload size limits</Criterion><Criterion met={operationsValid}>{drafts.length ? 'Every operation permitted; at most one L1 bridge call' : 'RFC has an empty payload'}</Criterion></ul>
-        <div className="preflight"><Button variant="secondary" onClick={() => void runPreflight()} disabled={!walletReady || !governanceReady || !accountReady || !formReady || preflight === 'checking'}>{preflight === 'checking' ? <><LoaderCircle className="spin" size={16} /> Simulating…</> : 'Run on-chain preflight'}</Button>{preflight === 'ready' && <p className="success-text"><Check size={15} /> eth_call succeeded at the current head.</p>}{preflightError && <div className="error-box compact">{preflightError}</div>}{transactionHash && <a className="tx-link" href={explorerTx(transactionHash)} target="_blank" rel="noreferrer">View submitted transaction</a>}</div>
+        <div className="preflight"><Button variant="secondary" onClick={() => void runPreflight()} disabled={!walletReady || !governanceReady || !accountReady || !formReady || preflight === 'checking'}>{preflight === 'checking' ? <><LoaderCircle className="spin" size={16} /> Simulating…</> : 'Run on-chain preflight'}</Button>{preflight === 'ready' && <p className="success-text"><Check size={15} /> eth_call succeeded at the current head.</p>}{preflightError && <div className="error-box compact">{preflightError}</div>}{preflight === 'ready' && executionGas && <div className={executionGas.perOperation.some((entry) => entry.error) ? 'error-box compact' : 'hint'}>
+          Execution cost, measured from the executor now: about {Number(executionGas.total).toLocaleString()} gas for the operations{executionGas.total > 2_000_000n ? ' — large; the Execute button sends with headroom, but a wallet-estimated execute would fall short' : ''}.
+          {executionGas.perOperation.map((entry, index) => entry.error ? <span key={index}><br />Operation {index + 1} would revert if executed now: {entry.error}. The state it needs may only exist after the vote; if not, the proposal will execute as failed.</span> : null)}
+        </div>}{transactionHash && <a className="tx-link" href={explorerTx(transactionHash)} target="_blank" rel="noreferrer">View submitted transaction</a>}</div>
         <Button onClick={() => void submit()} disabled={preflight !== 'ready' || submitting}>{submitting ? <><LoaderCircle className="spin" size={16} /> Confirming…</> : `Submit ${drafts.length ? 'proposal' : 'RFC'} · ${summary ? formatGen(summary.bond) : '—'} GEN`}</Button><p className="hint">Any head-state change after preflight can still cause the wallet transaction to revert. Contract errors are shown verbatim with a plain-language explanation when known.</p>
       </section></aside></div>}
   </div>

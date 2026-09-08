@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, LoaderCircle } from 'lucide-react'
-import type { Abi, Address } from 'viem'
+import { decodeEventLog, type Abi, type Address } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import { publicClient } from '@/config/clients'
 import { useWallet } from '@/config/WalletContext'
@@ -8,7 +8,7 @@ import { errorMessage, throttleBackoffMs } from '@/lib/governance'
 import { explorerTx } from '@/lib/rpc'
 import { Button } from './Button'
 
-export function TransactionButton({ address, abi, functionName, args, value, children, variant = 'primary', disabled, onConfirmed }: {
+export function TransactionButton({ address, abi, functionName, args, value, gasHeadroom = false, children, variant = 'primary', disabled, onConfirmed }: {
   address?: Address
   /** defaults to GovernanceVoting; pass another ABI to call a different contract
    *  (a validator wallet's govCastVote passthrough, for instance) */
@@ -16,6 +16,16 @@ export function TransactionButton({ address, abi, functionName, args, value, chi
   functionName: string
   args: readonly unknown[]
   value?: bigint
+  /**
+   * Send with an explicit gas limit well above the node's estimate. Needed for
+   * calls that CATCH their own failure — GovernanceVoting.execute runs the
+   * operation batch in a self-call and records a failure instead of
+   * reverting — because eth_estimateGas then finds the smallest gas at which
+   * the outer call survives, which is exactly the gas at which the inner
+   * batch runs out and is caught. Sent that way, the proposal reads
+   * ProposalExecutionFailed and stays Queued. Seen on gov3 proposal 7.
+   */
+  gasHeadroom?: boolean
   children: React.ReactNode
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
   disabled?: boolean
@@ -43,9 +53,19 @@ export function TransactionButton({ address, abi, functionName, args, value, chi
       // THIS refusal: anything else is a real answer about the call.
       // The signature is consumed by the failed send, so each retry re-prompts
       // the wallet; the button says so while it is waiting.
+      let gas: bigint | undefined
+      if (gasHeadroom) {
+        // Twice the estimate, never under 1.5M: the estimate is the wrong
+        // number by construction (see gasHeadroom), only its order of
+        // magnitude is useful. Unused gas is refunded.
+        try {
+          const estimate = await publicClient.estimateContractGas({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value, account } as never)
+          gas = estimate * 2n > 1_500_000n ? estimate * 2n : 1_500_000n
+        } catch { gas = 1_500_000n }
+      }
       for (let attempt = 0; ; attempt += 1) {
         try {
-          transactionHash = await writeContract({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value })
+          transactionHash = await writeContract({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value, gas })
           break
         } catch (sendError) {
           const backoff = throttleBackoffMs(sendError)
@@ -62,6 +82,29 @@ export function TransactionButton({ address, abi, functionName, args, value, chi
       // "Confirmed" over a failed council execution, which is the one place a
       // false success is most expensive: the action stays unconsumed and the
       // member walks away believing it landed.
+      // A transaction can succeed while the thing it was for did not:
+      // GovernanceVoting.execute runs the operation batch in a self-call and
+      // records ProposalExecutionFailed instead of reverting. Without this the
+      // button read "Confirmed" over an upgrade that had not happened (gov3
+      // proposal 7). Name it, and when the shape is out-of-gas, say what to
+      // change on the retry.
+      const batchFailure = receipt.logs.flatMap((log) => {
+        try {
+          const decoded = decodeEventLog({ abi: (abi ?? GovernanceVotingABI) as Abi, data: log.data, topics: log.topics }) as { eventName: string; args?: Record<string, unknown> }
+          return decoded.eventName === 'ProposalExecutionFailed' ? [decoded] : []
+        } catch { return [] }
+      })[0]
+      if (batchFailure) {
+        let limit: bigint | undefined
+        try { limit = (await publicClient.getTransaction({ hash: transactionHash! })).gas } catch { /* the diagnosis below degrades to the generic text */ }
+        const outOfGas = limit !== undefined && receipt.gasUsed * 100n >= limit * 90n
+        const retry = batchFailure.args?.retryAllowed === true
+        setHash(undefined)
+        setError(outOfGas
+          ? `The transaction was mined, but the operation batch ran out of gas inside it (${receipt.gasUsed.toLocaleString()} of ${limit!.toLocaleString()} used) and was recorded as ProposalExecutionFailed. Nothing changed on-chain${retry ? ' and the proposal can be retried' : ''}. Wallet estimates undershoot for execute; on the retry set the gas limit to at least ${(receipt.gasUsed * 3n).toLocaleString()} in the wallet's advanced gas settings.`
+          : `The transaction was mined, but an operation reverted inside it and the proposal recorded ProposalExecutionFailed. Nothing changed on-chain${retry ? '; the proposal can be retried once the cause is fixed' : ''}. Run the payload through the Create proposal preflight to see which operation reverts now.`)
+        return
+      }
       if (receipt.status !== 'success') {
         // The receipt carries no reason, so replay the same call at head to
         // recover one — the state that rejected it is still the live state.

@@ -1,0 +1,260 @@
+[
+  {
+    "inputs": [],
+    "name": "AlreadyRevoked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyUnlocked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BeaconAlreadyDeployed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BeaconNotDeployed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FundingMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GovernanceMemberUnset",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientContractBalance",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAddress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidCliffUnlockBps",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPeriodDuration",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidStopTimestamp",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ManualUnlockNotRequired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoValidatorWallet",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotBeneficiary",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotCreator",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotInitializing",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotRevocable",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotRevoked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotRevoker",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotVestingContract",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OperatorAlreadyUsed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PubKeyIsZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PubKeyNotOnCurve",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TransferFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "VestingAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "VestingAlreadyStopped",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "VestingDeploymentFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "VestingDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "VestingNotStopped",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WithdrawExceedsVested",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ZeroAmount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "beneficiary",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getValidatorWallets",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "revoked",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "electionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address[]",
+        "name": "candidates",
+        "type": "address[]"
+      }
+    ],
+    "name": "vestingGovCastBallot",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "proposalId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "support",
+        "type": "uint8"
+      },
+      {
+        "internalType": "string",
+        "name": "reason",
+        "type": "string"
+      }
+    ],
+    "name": "vestingGovCastVote",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "to",
+        "type": "address"
+      }
+    ],
+    "name": "vestingGovDelegate",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

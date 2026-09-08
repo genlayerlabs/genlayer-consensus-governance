@@ -14,6 +14,10 @@ import { useElectionCandidates, useElections } from '@/hooks/useElections'
 import { useElectionParameterHistory } from '@/hooks/useElectionParameterHistory'
 import { useElectionParameters, type ElectionParameters } from '@/hooks/useElectionParameters'
 import { useNow } from '@/hooks/useNow'
+import { useVoterIdentities } from '@/hooks/useVoterIdentities'
+import { IdentityPicker } from '@/components/IdentityPicker'
+import { ABI_BY_KEY } from '@/lib/abis'
+import { ballotRoute } from '@/lib/identity'
 import {
   ELECTION_KIND_NAMES, ELECTION_KIND_RUNOFF, ELECTION_STATE_NAMES, electionCountdown, electionCranks, electionNextAction, electionVerdict,
   formatDate, formatDuration, formatGen, formatPercent, formatRelative, shortAddress, type NominationEconomics,
@@ -49,7 +53,14 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
   const [open, setOpen] = useState(true)
   const [picks, setPicks] = useState('')
   const [order, setOrder] = useState<'nomination' | 'weight'>('nomination')
+  const [ballotAs, setBallotAs] = useState<Address | ''>('')
   const candidates = useElectionCandidates(open ? election.id : undefined, election.blockNumber)
+  // Ballot weight is the identity's weight at the vote-start snapshot, which
+  // the struct locates exactly; without it the projection from the log is
+  // the best available instant.
+  const ballotOpen = open && election.state === 3
+  const identities = useVoterIdentities(ballotOpen ? { electionId: election.id, snapshot: election.snapshotInstant ?? election.bounds?.voteStart ?? election.voteStart } : {})
+  const ballotIdentity = identities.identities.find((entry) => entry.kind !== 'eoa' && entry.address === ballotAs) ?? (address ? { kind: 'eoa' as const, address } : undefined)
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
   const cranks = electionCranks(election.state)
@@ -150,6 +161,7 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
         : <p className="hint">Nomination is not offered on this deployment: <code>nominate</code> demands an exact value of bond + registration fee + manifesto storage, and none of the three is readable here.</p>)}
       {mayEndorse && <p className="hint">Endorse up to three candidates; each endorsement carries this account's weight at the endorsement snapshot. Endorsing promotes a candidate towards the sealed slate.</p>}
       {cranks.some((crank) => crank.fn === 'castBallot') && <div className="form-grid">
+        {address && identities.identities.length > 1 && <div className="full"><IdentityPicker label="Ballot as" identities={identities.identities} selected={ballotAs} onSelect={setBallotAs} loading={identities.loading} error={identities.error} /></div>}
         <label className="full"><span className="label-text">Ballot — one to three slated candidates<InfoHint text={HINTS.ballot} /></span>
           <input value={picks} onChange={(event) => setPicks(event.target.value)} placeholder="0xabc…, 0xdef…" />
         </label>
@@ -159,14 +171,17 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
             disabled but absent: startEndorsement is idempotent, so calling it
             twice succeeds silently and the button would sit there reading
             "Confirmed" forever, inviting a second pointless transaction. */}
-        {cranks.map((crank) => <TransactionButton key={crank.fn}
-          address={elections} abi={GovernanceCouncilElectionsABI as never}
-          functionName={crank.fn}
-          args={crank.fn === 'castBallot' ? [election.id, picked] : [election.id]}
-          disabled={crank.fn === 'castBallot' && (picked.length < 1 || picked.length > 3)}
-          onConfirmed={() => { void candidates.refresh(); onChanged() }}>
-          {crank.label}
-        </TransactionButton>)}
+        {cranks.map((crank) => {
+          const ballot = crank.fn === 'castBallot' && ballotIdentity && elections ? ballotRoute(ballotIdentity, elections, election.id, picked as Address[]) : undefined
+          return <TransactionButton key={crank.fn}
+            address={ballot?.address ?? elections} abi={ballot ? ABI_BY_KEY[ballot.abi] : (GovernanceCouncilElectionsABI as never)}
+            functionName={ballot?.functionName ?? crank.fn}
+            args={ballot?.args ?? (crank.fn === 'castBallot' ? [election.id, picked] : [election.id])}
+            disabled={crank.fn === 'castBallot' && (picked.length < 1 || picked.length > 3)}
+            onConfirmed={() => { void candidates.refresh(); void identities.refresh(); onChanged() }}>
+            {crank.label}{ballotIdentity && ballotIdentity.kind !== 'eoa' && crank.fn === 'castBallot' ? ` as ${shortAddress(ballotIdentity.address)}` : ''}
+          </TransactionButton>
+        })}
         {/* Claimable the moment the slate is sealed without you on it, not
             only after settlement — so it stands apart from the phase crank. */}
         {canClaim && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never}
@@ -247,7 +262,19 @@ function ParametersPanel({ parameters }: { parameters: ElectionParameters }) {
 
 export function ElectionsPage() {
   const { currentSet } = useContracts()
+  const { address } = useWallet()
   const { elections, loading, error, source, refresh } = useElections()
+  // startElection is permissionless and due whenever no election is live
+  // and a trigger has arrived: the bootstrap gate, a cohort expiry, a
+  // special-election condition, a queued recall, or the retry a failed
+  // election opens at a halved quorum. None of that is readable as one
+  // flag, so the call is simulated: allowed means due, refused means the
+  // contract said NoElectionDue (or why not).
+  const anyLive = elections.some((election) => election.state >= 1 && election.state <= 4)
+  const { allowed: startDue, reason: startRefusal } = useCanCall({
+    address: currentSet?.elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'startElection',
+    args: [], account: address, enabled: !loading && !anyLive,
+  })
   const parameters = useElectionParameters()
   const economics = isPresent(parameters.economics) ? parameters.economics.value : undefined
 
@@ -264,6 +291,12 @@ export function ElectionsPage() {
     </div><Button variant="ghost" onClick={() => void refresh()}><RefreshCw size={15} /> Refresh</Button></div>
 
     <ParametersPanel parameters={parameters} />
+
+    {!anyLive && elections.length > 0 && (startDue
+      ? <section className="panel"><div className="section-heading"><div><p className="eyebrow">Due now</p><h2>An election can be started</h2>
+        <p className="muted">{elections[0]?.state === 5 ? `Election #${elections[0].id} failed quorum, so its retry is due at a halved quorum.` : 'A cohort expiry, special-election trigger, queued recall or the bootstrap gate has arrived.'} Anyone may open it; the transaction pays only gas.</p></div>
+        <TransactionButton address={currentSet.elections} abi={GovernanceCouncilElectionsABI as never} functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start election</TransactionButton></div></section>
+      : startDue === false && startRefusal && <p className="hint">No election is due: {startRefusal}</p>)}
 
     {error && <div className="error-box">{error}</div>}
     {loading && elections.length === 0 && <div className="loading-state">Reading elections directly from chain…</div>}
