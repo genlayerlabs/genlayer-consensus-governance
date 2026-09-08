@@ -20,7 +20,7 @@ interface WalletState {
   disconnect: () => void | Promise<void>
   switchAccount: () => Promise<void>
   switchChain: () => Promise<void>
-  writeContract: (request: { address: Address; abi: Abi | readonly unknown[]; functionName: string; args: readonly unknown[]; value?: bigint }) => Promise<Hex>
+  writeContract: (request: { address: Address; abi: Abi | readonly unknown[]; functionName: string; args: readonly unknown[]; value?: bigint; gas?: bigint }) => Promise<Hex>
 }
 
 const WalletContext = createContext<WalletState | undefined>(undefined)

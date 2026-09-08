@@ -8,7 +8,7 @@ import { errorMessage, throttleBackoffMs } from '@/lib/governance'
 import { explorerTx } from '@/lib/rpc'
 import { Button } from './Button'
 
-export function TransactionButton({ address, abi, functionName, args, value, children, variant = 'primary', disabled, onConfirmed }: {
+export function TransactionButton({ address, abi, functionName, args, value, gasHeadroom = false, children, variant = 'primary', disabled, onConfirmed }: {
   address?: Address
   /** defaults to GovernanceVoting; pass another ABI to call a different contract
    *  (a validator wallet's govCastVote passthrough, for instance) */
@@ -16,6 +16,16 @@ export function TransactionButton({ address, abi, functionName, args, value, chi
   functionName: string
   args: readonly unknown[]
   value?: bigint
+  /**
+   * Send with an explicit gas limit well above the node's estimate. Needed for
+   * calls that CATCH their own failure — GovernanceVoting.execute runs the
+   * operation batch in a self-call and records a failure instead of
+   * reverting — because eth_estimateGas then finds the smallest gas at which
+   * the outer call survives, which is exactly the gas at which the inner
+   * batch runs out and is caught. Sent that way, the proposal reads
+   * ProposalExecutionFailed and stays Queued. Seen on gov3 proposal 7.
+   */
+  gasHeadroom?: boolean
   children: React.ReactNode
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
   disabled?: boolean
@@ -43,9 +53,19 @@ export function TransactionButton({ address, abi, functionName, args, value, chi
       // THIS refusal: anything else is a real answer about the call.
       // The signature is consumed by the failed send, so each retry re-prompts
       // the wallet; the button says so while it is waiting.
+      let gas: bigint | undefined
+      if (gasHeadroom) {
+        // Twice the estimate, never under 1.5M: the estimate is the wrong
+        // number by construction (see gasHeadroom), only its order of
+        // magnitude is useful. Unused gas is refunded.
+        try {
+          const estimate = await publicClient.estimateContractGas({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value, account } as never)
+          gas = estimate * 2n > 1_500_000n ? estimate * 2n : 1_500_000n
+        } catch { gas = 1_500_000n }
+      }
       for (let attempt = 0; ; attempt += 1) {
         try {
-          transactionHash = await writeContract({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value })
+          transactionHash = await writeContract({ address, abi: (abi ?? GovernanceVotingABI) as Abi, functionName, args, value, gas })
           break
         } catch (sendError) {
           const backoff = throttleBackoffMs(sendError)

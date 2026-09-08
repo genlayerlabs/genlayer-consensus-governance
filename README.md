@@ -114,6 +114,7 @@ The Vite base path is `/genlayer-consensus-governance/`, routing uses URL hashes
 - L1 bridge progress is represented in the proposal lifecycle, but a deployed bridge/executor and its live events are required for transaction-specific L1 status.
 - The delegate directory is the union of joined validators and their delegators — a superset of everyone who can hold voting power, but it truncates at the paged-read ceiling and says so when it does.
 - Reorganizations are handled by confirmed receipt waits and explicit refresh; cached logs carry a reorg margin below the head.
+- `execute` and `executeAction` are sent with an explicit gas limit (twice the estimate, at least 1.5M). `GovernanceVoting.execute` catches its own batch failure, so the wallet's estimate is the gas at which the batch runs out and is caught, and a multi-operation proposal sent with it records `ProposalExecutionFailed` instead of executing.
 - Seat lifecycle actions, recall triggering, escrowed bond claims and the emergency path are readable but unbuilt. Nothing blocks them; they were out of scope for the POC.
 - A validator wallet owned by a Vesting contract can be voted by nobody from a browser: Vesting exposes passthroughs for its own weight, none for its wallets'. Such wallets are listed disabled with that reason.
 

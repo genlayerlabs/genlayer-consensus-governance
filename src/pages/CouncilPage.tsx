@@ -245,7 +245,7 @@ function ActionRow({ action, council, isMember, thresholds, membershipVersion, p
       >Approve</TransactionButton>}
       {ready && canExecute !== false && <TransactionButton
         address={council} abi={SecurityCouncilABI as never}
-        functionName="executeAction" args={[action.actionId]} onConfirmed={onDone}
+        functionName="executeAction" args={[action.actionId]} gasHeadroom onConfirmed={onDone}
       >Execute</TransactionButton>}
     </div>}
   </article>

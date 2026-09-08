@@ -219,7 +219,7 @@ export function ProposalPage() {
           onConfirmed={async () => { await refresh(); await identities.refresh() }}
         ><Vote size={16} /> Cast {SUPPORT_NAMES[support]} vote{selectedIdentity ? ` as ${shortAddress(selectedIdentity.address)}` : ''}</TransactionButton>{!isConnected && <p className="hint">Connect a wallet to vote.</p>}{activeHasVoted && <p className="hint">{selectedIdentity ? 'This identity already voted.' : 'This account already voted.'}</p>}{!activeHasVoted && activeWeight === 0n && <p className="hint">{selectedIdentity ? 'This identity had no weight at the snapshot.' : 'This account had zero weight at the snapshot.'}</p>}</>}
         {(proposal.state === 2 || proposal.state === 3) && <TransactionButton address={voting} functionName="settle" args={[id]} onConfirmed={refresh}>Settle proposal</TransactionButton>}
-        {(proposal.state === 8 || (proposal.state === 10 && proposal.core.retryAllowed)) && <TransactionButton address={voting} functionName="execute" args={[id]} onConfirmed={refresh}>{proposal.state === 10 ? 'Retry execution' : 'Execute proposal'}</TransactionButton>}
+        {(proposal.state === 8 || (proposal.state === 10 && proposal.core.retryAllowed)) && <TransactionButton address={voting} functionName="execute" args={[id]} gasHeadroom onConfirmed={refresh}>{proposal.state === 10 ? 'Retry execution' : 'Execute proposal'}</TransactionButton>}
         {proposal.state === 11 && <TransactionButton address={voting} functionName="expire" args={[id]} onConfirmed={refresh}>Record expiry</TransactionButton>}
         {proposal.state === 4 && <div className="glf-actions">
           {/* Each half is shown when its role allows it, or when the role
