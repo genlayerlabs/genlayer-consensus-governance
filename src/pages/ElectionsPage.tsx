@@ -262,7 +262,19 @@ function ParametersPanel({ parameters }: { parameters: ElectionParameters }) {
 
 export function ElectionsPage() {
   const { currentSet } = useContracts()
+  const { address } = useWallet()
   const { elections, loading, error, source, refresh } = useElections()
+  // startElection is permissionless and due whenever no election is live
+  // and a trigger has arrived: the bootstrap gate, a cohort expiry, a
+  // special-election condition, a queued recall, or the retry a failed
+  // election opens at a halved quorum. None of that is readable as one
+  // flag, so the call is simulated: allowed means due, refused means the
+  // contract said NoElectionDue (or why not).
+  const anyLive = elections.some((election) => election.state >= 1 && election.state <= 4)
+  const { allowed: startDue, reason: startRefusal } = useCanCall({
+    address: currentSet?.elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'startElection',
+    args: [], account: address, enabled: !loading && !anyLive,
+  })
   const parameters = useElectionParameters()
   const economics = isPresent(parameters.economics) ? parameters.economics.value : undefined
 
@@ -279,6 +291,12 @@ export function ElectionsPage() {
     </div><Button variant="ghost" onClick={() => void refresh()}><RefreshCw size={15} /> Refresh</Button></div>
 
     <ParametersPanel parameters={parameters} />
+
+    {!anyLive && elections.length > 0 && (startDue
+      ? <section className="panel"><div className="section-heading"><div><p className="eyebrow">Due now</p><h2>An election can be started</h2>
+        <p className="muted">{elections[0]?.state === 5 ? `Election #${elections[0].id} failed quorum, so its retry is due at a halved quorum.` : 'A cohort expiry, special-election trigger, queued recall or the bootstrap gate has arrived.'} Anyone may open it; the transaction pays only gas.</p></div>
+        <TransactionButton address={currentSet.elections} abi={GovernanceCouncilElectionsABI as never} functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start election</TransactionButton></div></section>
+      : startDue === false && startRefusal && <p className="hint">No election is due: {startRefusal}</p>)}
 
     {error && <div className="error-box">{error}</div>}
     {loading && elections.length === 0 && <div className="loading-state">Reading elections directly from chain…</div>}
