@@ -478,3 +478,12 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .nominate-form { border-top: 1px solid var(--line); padding-top: 16px; }
 .nominate-form .header-facts { margin-top: 8px; padding-bottom: 0; border-bottom: none; }
 .nominate-form .criteria { margin-top: 16px; }
+/* Ballot composition: a checkbox-like control in front of each slated
+   candidate during Voting. It edits the same list the text field shows. */
+.candidate-cell { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.pick-toggle { appearance: none; border: 0; background: none; padding: 0; margin: 0; display: inline-flex; align-items: center; color: var(--muted); cursor: pointer; line-height: 0; }
+.pick-toggle:hover:not(:disabled) { color: var(--text); }
+.pick-toggle[aria-pressed="true"] { color: var(--green); }
+.pick-toggle:disabled { cursor: not-allowed; opacity: .45; }
+.pick-toggle.unavailable { cursor: help; opacity: .3; }
+.voter-list article.picked { background: rgba(127, 211, 160, .06); }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { CheckSquare, RefreshCw, Square } from 'lucide-react'
 import type { Address } from 'viem'
 import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json'
 import { Button } from '@/components/Button'
@@ -63,6 +63,12 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
   const ballotIdentity = identities.identities.find((entry) => entry.kind !== 'eoa' && entry.address === ballotAs) ?? (address ? { kind: 'eoa' as const, address } : undefined)
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
+  const isPicked = (candidate: Address) => picked.some((pick) => pick.toLowerCase() === candidate.toLowerCase())
+  // The row control and the text field are two views of one list: clicking a
+  // row adds or removes that address, and whatever was typed by hand stays.
+  const togglePick = (candidate: Address) => setPicks(isPicked(candidate)
+    ? picked.filter((pick) => pick.toLowerCase() !== candidate.toLowerCase()).join(', ')
+    : [...picked, candidate].join(', '))
   const endorsementOpened = election.details !== undefined && election.details.endorsementSnapshot !== 0n
   const cranks = electionCranks(election.state, endorsementOpened)
   // claimBond reverts NothingToClaim for anyone who did not nominate, which is
@@ -139,6 +145,7 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
         Order: <button type="button" className="link-button" onClick={() => setOrder(order === 'weight' ? 'nomination' : 'weight')}>{order === 'weight' ? 'by weight' : 'as nominated'}</button></p>}
       <div className="voter-list">{sorted.map((candidate) => <CandidateRow key={candidate.address} candidate={candidate} election={election} elections={elections}
         mayEndorse={mayEndorse} mayWithdraw={inRegistration && own(candidate.address)}
+        pick={election.state === 3 ? { picked: isPicked(candidate.address), full: picked.length >= 3, toggle: () => togglePick(candidate.address) } : undefined}
         onChanged={() => { void candidates.refresh(); onChanged() }} />)}
       {!candidates.loading && candidates.candidates.length === 0 && <div className="empty inline">
         <p>{candidates.complete ? 'No candidates.' : 'No candidates found in the scanned range.'}</p></div>}
@@ -154,10 +161,10 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
           restricted to. A round that ends endorsement with nobody endorsed
           seals an empty slate, every ballot reverts NotSlated, and settle
           fails it on quorum — a silent outcome unless the page says so. */}
-      {election.state >= 1 && election.state <= 3 && election.slate.length === 0 && candidates.candidates.length > 0 && !(election.state === 1 && election.subPhase === 'registration') && <div className="error-box">
+      {election.state >= 1 && election.state <= 4 && election.slate.length === 0 && candidates.candidates.length > 0 && !(election.state === 1 && election.subPhase === 'registration') && <div className="error-box">
         {election.state === 1
           ? 'No candidate has been endorsed yet. Only endorsed candidates reach the slate the ballot is restricted to: if endorsement closes with an empty slate, no ballot can be cast and this election fails at settle.'
-          : 'The slate is empty: no candidate was endorsed while endorsement was open. No ballot can be cast, and this election fails at settle; the retry that follows starts with registration again.'}
+          : 'The slate is empty: no candidate was endorsed while endorsement was open. No ballot can be cast, settle will fail this election, and the retry that follows starts with registration again.'}
       </div>}
       {mayEndorse && <p className="hint">Endorse up to three candidates; each endorsement carries this account's weight at the endorsement snapshot. Endorsing promotes a candidate towards the sealed slate.</p>}
       {cranks.some((crank) => crank.fn === 'castBallot') && <div className="form-grid">
@@ -205,8 +212,11 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
 }
 
 /** The on-chain manifesto, read on demand: it can be 16 KB, and most visitors never open it. */
-function CandidateRow({ candidate, election, elections, mayEndorse, mayWithdraw, onChanged }: {
-  candidate: ElectionCandidate; election: ElectionSummary; elections?: Address; mayEndorse: boolean; mayWithdraw: boolean; onChanged: () => void
+function CandidateRow({ candidate, election, elections, mayEndorse, mayWithdraw, pick, onChanged }: {
+  candidate: ElectionCandidate; election: ElectionSummary; elections?: Address; mayEndorse: boolean; mayWithdraw: boolean
+  /** Present during Voting: the row's place in the ballot being composed. */
+  pick?: { picked: boolean; full: boolean; toggle: () => void }
+  onChanged: () => void
 }) {
   // The manifesto opens as a full-width line UNDER the cells, not inside the
   // actions column: each row is its own grid, so a manifesto growing inside
@@ -218,9 +228,19 @@ function CandidateRow({ candidate, election, elections, mayEndorse, mayWithdraw,
     : election.alternates.some((alternate) => alternate.toLowerCase() === candidate.address.toLowerCase())
       ? 'Alternate'
       : 'Not seated'
-  return <article>
+  // Only slated candidates can be balloted (castBallot reverts NotSlated), so
+  // the control is offered on those rows alone; the others say why.
+  const pickable = pick !== undefined && candidate.slated && !candidate.withdrawn
+  return <article className={pick?.picked ? 'picked' : undefined}>
     <span className={`vote-dot support-${candidate.withdrawn ? 0 : candidate.slated ? 1 : 2}`} />
-    <a href={explorerAddress(candidate.address)} target="_blank" rel="noreferrer">{shortAddress(candidate.address)}</a>
+    <span className="candidate-cell">
+      {pickable && <button type="button" className="pick-toggle" aria-pressed={pick.picked}
+        title={pick.picked ? 'Remove from ballot' : pick.full ? 'The ballot already holds three candidates' : 'Add to ballot'}
+        disabled={!pick.picked && pick.full} onClick={pick.toggle}>
+        {pick.picked ? <CheckSquare size={14} /> : <Square size={14} />}</button>}
+      {pick !== undefined && !pickable && <span className="pick-toggle unavailable" title={candidate.withdrawn ? 'Withdrawn' : 'Not slated — cannot be balloted'}><Square size={14} /></span>}
+      <a href={explorerAddress(candidate.address)} target="_blank" rel="noreferrer">{shortAddress(candidate.address)}</a>
+    </span>
     <b>{formatGen(candidate.weight)} GEN</b>
     <span>{candidate.withdrawn ? 'Withdrawn' : candidate.slated ? 'Slated' : 'Nominated'}{candidate.autoNominated ? ' · incumbent' : ''}</span>
     <span>{candidate.autoNominated ? 'No bond' : candidate.bondClaimed ? `Bond ${candidate.withdrawn ? 'refunded' : 'claimed'}` : `Bond ${formatGen(candidate.bond)} GEN`}</span>
