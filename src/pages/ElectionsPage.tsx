@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Check, CheckSquare, Circle, Minus, RefreshCw, Square } from 'lucide-react'
 import type { Address } from 'viem'
 import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json'
@@ -51,7 +51,7 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
   // Open by default: the slate, candidates and ballot are the page — hiding
   // them behind a click made an election look like a one-line stub.
   const { address } = useWallet()
-  const now = useNow()
+  const now = useNow(10_000)
   const [open, setOpen] = useState(true)
   const [picks, setPicks] = useState('')
   const [order, setOrder] = useState<'nomination' | 'weight'>('nomination')
@@ -72,7 +72,8 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
     ? picked.filter((pick) => pick.toLowerCase() !== candidate.toLowerCase()).join(', ')
     : [...picked, candidate].join(', '))
   const endorsementOpened = election.details !== undefined && election.details.endorsementSnapshot !== 0n
-  const cranks = electionCranks(election.state, endorsementOpened)
+  const sealed = election.details?.sealed ?? false
+  const cranks = electionCranks(election.state, endorsementOpened, sealed)
   // claimBond reverts NothingToClaim for anyone who did not nominate, which is
   // almost everyone looking at the page. Simulating it is the only way to know:
   // the claimable set is not readable, and it opens as soon as a slate is
@@ -93,6 +94,16 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
   const own = (candidate: Address) => !!address && candidate.toLowerCase() === address.toLowerCase()
   const bounds = election.bounds
   const countdown = bounds ? electionCountdown(election.state, election.subPhase, bounds) : undefined
+  // A phase boundary is a moment, and the page used to sit on the old phase
+  // until someone clicked Refresh: Preparation kept showing while voting had
+  // opened. Once the clock passes the boundary the card is counting down to,
+  // re-read the election — once per boundary, so a stale RPC cannot loop it.
+  const refreshedFor = useRef<bigint | undefined>(undefined)
+  useEffect(() => {
+    if (!countdown || now < countdown.at || refreshedFor.current === countdown.at) return
+    refreshedFor.current = countdown.at
+    onChanged()
+  }, [countdown, now, onChanged])
   const verdict = election.details ? electionVerdict(election.details, election.ges) : 'unknown'
   const sorted = [...candidates.candidates].sort((a, b) => order === 'weight' || !candidates.complete
     ? (a.weight === b.weight ? 0 : a.weight > b.weight ? -1 : 1)
@@ -148,7 +159,7 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
     {open && <>
       <ElectionGuide steps={electionGuide({
         state: election.state, subPhase: election.subPhase, kind: election.kind,
-        endorsementOpened, sealed: election.details?.sealed ?? false, slateEmpty: election.slate.length === 0,
+        endorsementOpened, sealed, slateEmpty: election.slate.length === 0,
       })} />
       {candidates.candidates.length > 1 && candidates.complete && <p className="hint">
         Order: <button type="button" className="link-button" onClick={() => setOrder(order === 'weight' ? 'nomination' : 'weight')}>{order === 'weight' ? 'by weight' : 'as nominated'}</button></p>}
@@ -206,7 +217,9 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
         {cranks.length === 0 && !canClaim && <p className="hint">
           {election.state < 2
             ? 'No transaction is needed in this phase.'
-            : 'Nothing left to do here: this election is recorded, and this account has no bond to claim.'}</p>}
+            : election.state === 2
+              ? 'The slate is sealed. Voting opens at the time shown above; the ballot appears here then.'
+              : 'Nothing left to do here: this election is recorded, and this account has no bond to claim.'}</p>}
         {election.state === 1 && election.subPhase === 'registration' && <p className="hint">
           Registration is open: <code>startEndorsement</code> closes it once the registration offset has elapsed, and
           endorsement runs until the nomination offset.</p>}

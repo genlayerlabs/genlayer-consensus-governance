@@ -219,6 +219,8 @@ describe('governance helpers', () => {
     // and once the snapshot is set the crank is spent, so the button goes
     expect(electionCranks(1, true)).toEqual([])
     expect(electionCranks(2).map((crank) => crank.fn)).toEqual(['sealSlate'])
+    // sealed early: Preparation lasts until voting opens, and the button must not linger as "Confirmed"
+    expect(electionCranks(2, true, true)).toEqual([])
     expect(electionCranks(3).map((crank) => crank.fn)).toEqual(['castBallot'])
     // Succeeded is transient, so it settles
     expect(electionCranks(4).map((crank) => crank.fn)).toEqual(['settleElection'])
@@ -405,6 +407,8 @@ describe('electionGuide', () => {
   it('says what an empty slate means at seal and at vote', () => {
     expect(electionGuide({ ...base, state: 2, endorsementOpened: true })[3].instruction).toMatch(/empty slate/)
     expect(electionGuide({ ...base, state: 3, slateEmpty: false })[4].instruction).toMatch(/Tick one to three/)
+    // sealed before voting opens: the step is Vote, but it says to wait
+    expect(electionGuide({ ...base, state: 2, sealed: true, slateEmpty: false })[4].instruction).toMatch(/has not opened yet/)
     expect(electionGuide({ ...base, state: 3 })[4].instruction).toMatch(/every ballot reverts/)
   })
 

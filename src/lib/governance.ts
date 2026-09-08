@@ -492,12 +492,14 @@ export const ELECTION_KIND_NAMES = ['Bootstrap', 'Cohort', 'Special', 'Recall', 
  * ElectionState: 0 Scheduled, 1 Nomination, 2 Preparation, 3 Voting,
  * 4 Succeeded, 5 Failed, 6 Settled.
  */
-export function electionCranks(state: number, endorsementOpened = false): { fn: string; label: string }[] {
+export function electionCranks(state: number, endorsementOpened = false, sealed = false): { fn: string; label: string }[] {
   switch (state) {
     // Once the snapshot is set the crank has nothing left to do, so the
     // button goes away instead of inviting a second (silently successful) call.
     case 1: return endorsementOpened ? [] : [{ fn: 'startEndorsement', label: 'Open endorsement' }]
-    case 2: return [{ fn: 'sealSlate', label: 'Seal slate' }]
+    // Same for sealSlate: Preparation lasts until voting opens, and a sealed
+    // slate is the proof the call has run.
+    case 2: return sealed ? [] : [{ fn: 'sealSlate', label: 'Seal slate' }]
     case 3: return [{ fn: 'castBallot', label: 'Cast ballot' }]
     // Succeeded ONLY. computeState returns Failed exclusively once
     // election.failed is set, which settle is what sets — so Failed is a
@@ -551,9 +553,11 @@ export function electionGuide(input: ElectionGuideInput): ElectionGuideStep[] {
     { key: 'seal', title: 'Seal the slate', instruction: slateEmpty && !runoff && !recall
       ? 'Endorsement has closed with nobody endorsed. Sealing freezes an empty slate: no ballot can be cast and settle will fail this election.'
       : 'Endorsement has closed. Anyone seals the slate to freeze the endorsed set; the first ballot seals it too. Voting opens at the voting offset.' },
-    { key: 'vote', title: 'Vote', instruction: slateEmpty
-      ? 'Voting is open but the slate is empty, so every ballot reverts. Wait for voting to close, then settle.'
-      : 'Voting is open. Tick one to three slated candidates and cast the ballot; each pick receives the account\'s full weight at the vote snapshot. One ballot per account, no recasting.' },
+    { key: 'vote', title: 'Vote', instruction: state === 2
+      ? 'The slate is sealed and voting has not opened yet. Nothing to do until the time shown under "Voting opens"; stake added or re-delegated before then counts, since the vote snapshot is taken when voting opens.'
+      : slateEmpty
+        ? 'Voting is open but the slate is empty, so every ballot reverts. Wait for voting to close, then settle.'
+        : 'Voting is open. Tick one to three slated candidates and cast the ballot; each pick receives the account\'s full weight at the vote snapshot. One ballot per account, no recasting.' },
     { key: 'settle', title: 'Settle', instruction: 'Voting has closed. Anyone settles the election: turnout is checked against quorum, winners take their seats, alternates are recorded, and losing bonds become claimable.' },
     { key: 'result', title: 'Result', instruction: state === 5
       ? 'Quorum was not met. This round is recorded as failed; a retry can be started at a halved quorum, and it begins again with registration.'
