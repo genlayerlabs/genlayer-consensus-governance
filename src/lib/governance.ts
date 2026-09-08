@@ -507,6 +507,80 @@ export function electionCranks(state: number, endorsementOpened = false): { fn: 
   }
 }
 
+export type ElectionGuideStatus = 'done' | 'current' | 'upcoming' | 'skipped'
+export interface ElectionGuideStep { key: string; title: string; instruction: string; status: ElectionGuideStatus }
+
+export interface ElectionGuideInput {
+  state: number
+  subPhase?: ElectionSubPhase
+  kind?: number
+  /** endorsementSnapshot != 0 — the Open endorsement crank has run. */
+  endorsementOpened: boolean
+  /** election.sealed_ — the slate is frozen (sealSlate, or lazily by the first ballot). */
+  sealed: boolean
+  /** No candidate has reached the slate. */
+  slateEmpty: boolean
+}
+
+/**
+ * The walkthrough: every step of an election in order, with the one that
+ * needs doing NOW marked current and told in one sentence. The page's phase
+ * badge names where the election is; this says what a person should do about
+ * it, which the contract's state machine never spells out — it took an empty
+ * slate (nobody knew endorsing was the step that builds it) to make that
+ * gap visible.
+ *
+ * Runoff carries the tied candidates over already slated, so its nomination
+ * and endorsement steps are skipped rather than pending. Recall auto-slates
+ * the incumbents but challengers still nominate and need endorsements.
+ */
+export function electionGuide(input: ElectionGuideInput): ElectionGuideStep[] {
+  const { state, subPhase, kind, endorsementOpened, sealed, slateEmpty } = input
+  const runoff = kind === ELECTION_KIND_RUNOFF
+  const recall = kind === 3
+  const steps: { key: string; title: string; instruction: string }[] = [
+    { key: 'nominate', title: 'Candidates nominate', instruction: runoff
+      ? 'Not needed: the tied candidates of the parent election are carried over and already slated.'
+      : `Registration is open. Candidates nominate themselves with a manifesto and the bond${recall ? '; the recalled incumbents are already candidates' : ''}. A candidate may withdraw for a full refund until registration closes.` },
+    { key: 'openEndorsement', title: 'Open endorsement', instruction: runoff
+      ? 'Not needed for a runoff.'
+      : 'Registration has run its course. Anyone sends Open endorsement: it fixes the endorsement snapshot and closes registration. Until it is sent, endorsing reverts.' },
+    { key: 'endorse', title: 'Endorse candidates', instruction: runoff
+      ? 'Not needed for a runoff.'
+      : 'Accounts with voting weight endorse up to three candidates. Only endorsed candidates reach the slate, and the most endorsed (up to the slate cap) are the ones that can be voted for. Nothing else adds a candidate to the ballot.' },
+    { key: 'seal', title: 'Seal the slate', instruction: slateEmpty && !runoff && !recall
+      ? 'Endorsement has closed with nobody endorsed. Sealing freezes an empty slate: no ballot can be cast and settle will fail this election.'
+      : 'Endorsement has closed. Anyone seals the slate to freeze the endorsed set; the first ballot seals it too. Voting opens at the voting offset.' },
+    { key: 'vote', title: 'Vote', instruction: slateEmpty
+      ? 'Voting is open but the slate is empty, so every ballot reverts. Wait for voting to close, then settle.'
+      : 'Voting is open. Tick one to three slated candidates and cast the ballot; each pick receives the account\'s full weight at the vote snapshot. One ballot per account, no recasting.' },
+    { key: 'settle', title: 'Settle', instruction: 'Voting has closed. Anyone settles the election: turnout is checked against quorum, winners take their seats, alternates are recorded, and losing bonds become claimable.' },
+    { key: 'result', title: 'Result', instruction: state === 5
+      ? 'Quorum was not met. This round is recorded as failed; a retry can be started at a halved quorum, and it begins again with registration.'
+      : 'The election is recorded and its seats are filled.' },
+  ]
+  const index = (() => {
+    if (state === 0) return 0
+    if (state === 1) {
+      if (runoff) return 3
+      if (subPhase === 'registration') return 0
+      if (subPhase === 'endorsement') return endorsementOpened ? 2 : 1
+      return endorsementOpened ? 2 : 0
+    }
+    if (state === 2) return sealed ? 4 : 3
+    if (state === 3) return 4
+    if (state === 4) return 5
+    return 6
+  })()
+  return steps.map((step, position) => ({
+    ...step,
+    status: runoff && position < 3 ? 'skipped'
+      : position < index ? 'done'
+        : position === index ? 'current'
+          : 'upcoming',
+  }))
+}
+
 export function electionNextAction(state: number, subPhase?: ElectionSubPhase): string {
   if (state === 1 && subPhase === 'registration') return 'Registration open — nominate or withdraw'
   if (state === 1 && subPhase === 'endorsement') return 'Endorse up to three candidates'
