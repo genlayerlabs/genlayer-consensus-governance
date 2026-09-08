@@ -191,7 +191,10 @@ export function encodeOperation(input: {
   let selector: Hex
   let args: Hex
   if (input.mode === 'abi') {
-    const item = parseAbiItem(`function ${input.signature}`)
+    // Trimmed: a signature pasted from a rendered page can carry a trailing
+    // space or a zero-width character, and abitype rejects the whole string
+    // as "Unknown signature" for it.
+    const item = parseAbiItem(`function ${input.signature.replace(/[\s\u200B-\u200D\uFEFF]+/g, ' ').trim()}`)
     if (item.type !== 'function') throw new Error('Enter a Solidity function signature')
     const values = JSON.parse(input.argsJson || '[]')
     if (!Array.isArray(values)) throw new Error('Arguments must be a JSON array')
