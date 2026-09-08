@@ -48,11 +48,14 @@ const HINTS = {
 }
 
 function ElectionCard({ election, elections, economics, onChanged }: { election: ElectionSummary; elections?: Address; economics?: NominationEconomics; onChanged: () => void }) {
-  // Open by default: the slate, candidates and ballot are the page — hiding
-  // them behind a click made an election look like a one-line stub.
+  // A live election opens by default: its slate, candidates and ballot are
+  // the page, and hiding them behind a click made it look like a one-line
+  // stub. A recorded one (Failed, Settled) is history and starts collapsed,
+  // so the round that needs attention is not buried under the rounds that
+  // preceded it. Details still opens any of them.
   const { address } = useWallet()
   const now = useNow(10_000)
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(election.state < 5)
   const [picks, setPicks] = useState('')
   const [order, setOrder] = useState<'nomination' | 'weight'>('nomination')
   const [ballotAs, setBallotAs] = useState<Address | ''>('')
