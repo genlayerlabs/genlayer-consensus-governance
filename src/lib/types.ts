@@ -234,6 +234,60 @@ export interface ElectionCandidate {
   slated: boolean
   withdrawn: boolean
   bond: bigint
+  /** from candidateOf() where the deployment exposes it (CON-864) */
+  bondClaimed?: boolean
+  autoNominated?: boolean
+  /** 1-based nomination order; 0 for an auto-nominated incumbent */
+  nominationSeq?: number
+}
+
+/** The stored scalars of an election, from elections(id) (CON-864). */
+export interface ElectionDetails {
+  kind: number
+  cohortId: number
+  seatsAtStake: number
+  creationTime: bigint
+  /** clock.frozenTotal() at start: the freeze budget already spent before this election */
+  fStart: bigint
+  /** UNFROZEN offsets from creationTime */
+  registrationEnd: bigint
+  nominationEnd: bigint
+  voteStartOffset: bigint
+  voteEndOffset: bigint
+  /** wall instant of the endorsement snapshot; 0 until startEndorsement */
+  endorsementSnapshot: bigint
+  quorumBps: number
+  sealed: boolean
+  /** marks a seated outcome; a quorum failure sets `failed` and leaves this false */
+  settled: boolean
+  failed: boolean
+  termEnd: bigint
+  parentElection: bigint
+  turnout: bigint
+  rankingCommitment: Hex
+  minSupportBps: number
+  refundFloorBps: number
+  gesRegistry: Address
+  slateCap: number
+  alternateSlots: number
+}
+
+/** Wall-clock phase boundaries computed from the offsets and the clock's frozen total. */
+export interface ElectionBounds {
+  registrationEnd: bigint
+  nominationEnd: bigint
+  voteStart: bigint
+  voteEnd: bigint
+}
+
+export type ElectionSubPhase = 'registration' | 'endorsement'
+
+export interface ElectionParameterChange {
+  event: string
+  values: Record<string, string>
+  blockNumber: bigint
+  timestamp?: bigint
+  transactionHash: Hex
 }
 
 export interface ElectionSummary {
@@ -249,9 +303,19 @@ export interface ElectionSummary {
   winners: Address[]
   alternates: Address[]
   ranking: Address[]
-  /** only known after the fact, from ElectionSettled / ElectionFailed */
+  /** the stored struct, where the deployment exposes elections(id) */
+  details?: ElectionDetails
+  /** exact boundaries from the struct and the live frozen total; absent → only the projections above */
+  bounds?: ElectionBounds
+  /** Nomination splits into registration (nominate/withdraw) and endorsement */
+  subPhase?: ElectionSubPhase
+  /** live from the struct; before CON-864 known only after the fact */
   turnout?: bigint
-  quorum?: bigint
+  quorumBps?: number
+  /** quorumBps × GES at the vote-start snapshot, once that snapshot can be resolved */
+  quorumRequired?: bigint
+  ges?: bigint
+  snapshotInstant?: bigint
   transactionHash?: Hex
   blockNumber?: bigint
 }

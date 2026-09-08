@@ -31,7 +31,7 @@ Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlab
 
 **Delegation.** A directory of every address that can hold voting power, built from paged staking views rather than logs, with your own delegation panel above it. Clicking an address fills the delegate field. The per-position `MIN_ENTRY_VALUE` floor is pre-flighted before the transaction: several small positions cannot be combined to clear it, and the panel says so instead of letting the call revert.
 
-**Elections.** Bootstrap, cohort, special, recall and runoff elections with slate, winners, alternates and candidate roll. Exactly one crank is offered per phase — Open endorsement in Nomination, Seal slate in Preparation, Cast ballot in Voting, Settle from Succeeded — because `startEndorsement` is idempotent and a simulation cannot tell a duplicate from a first call. Claim bond is simulated and shown only when there is something to claim.
+**Elections.** Bootstrap, cohort, special, recall and runoff elections with slate, winners, alternates and candidate roll. Nominate with the exact bond + fee + storage cost, endorse candidates and withdraw a candidacy where the economics are readable. Where the deployment exposes the election struct, the phase boundaries are computed from its unfrozen offsets and the clock's frozen total — the contract's own arithmetic — and shown with a countdown, alongside turnout against the settle-time quorum and what settle will record. Exactly one crank is offered per phase — Open endorsement in Nomination, Seal slate in Preparation, Cast ballot in Voting, Settle from Succeeded — because `startEndorsement` is idempotent and a simulation cannot tell a duplicate from a first call. Claim bond is simulated and shown only when there is something to claim.
 
 ## Phase 3 — contract-dependent features ([CON-864](https://linear.app/genlayer-labs/issue/CON-864))
 
@@ -39,13 +39,13 @@ Things the UI could not do because the value it needs was not readable and canno
 
 | What | Why | Needed | UI status |
 | --- | --- | --- | --- |
-| Nominate a candidate | `nominate` demands an exact `msg.value` of bond + registration fee + manifesto storage; none of the three had a getter and their setter emitted nothing | `electionEconomics()` | pending adoption |
-| Live phase countdown, turnout, quorum | No `elections(uint256)` struct getter; turnout existed only after settlement | `elections(uint256)` | pending adoption |
+| Nominate a candidate | `nominate` demands an exact `msg.value` of bond + registration fee + manifesto storage; none of the three had a getter and their setter emitted nothing | `electionEconomics()` | nominate form with the cost to the wei and a preflight that self-corrects from `WrongPayment`; endorse and withdraw on the roll |
+| Live phase countdown, turnout, quorum | No `elections(uint256)` struct getter; turnout existed only after settlement | `elections(uint256)` | exact bounds with a countdown, turnout and the settle-time quorum where exposed; otherwise the projections recorded at start |
 | Gate the GLF buttons without simulating | `setGLFVetoSigner` / `setGLFMember` wrote private slots and emitted nothing | `glfVetoSigner()`, `glfMembers(address)` | read where exposed; otherwise simulated |
 | A provably complete action log | `actions` and `actionNonce` are private; actions were discoverable only from logs | `actionCount()`, `actionIdAt(uint256)`, `actionMeta(bytes32)` | pending adoption |
-| The full candidate roll | `electionSlate` returns only the sealed top set | `candidatesOf(uint256)`, `candidateOf(uint256,address)` | pending adoption |
+| The full candidate roll | `electionSlate` returns only the sealed top set | `candidatesOf(uint256)`, `candidateOf(uint256,address)` | the contract's roll where exposed, with manifestos on demand; otherwise rebuilt from logs and labelled |
 | Count proposals in one call | No `proposalCount()`; ids were probed instead | `proposalCount()` | read where exposed; otherwise probed |
-| Historical election parameters | Seven setters emitted no events, so past values were unrecoverable | events on the setters, plus `electionPeriods()`, `electionQuorums()`, `termLength()` | pending adoption |
+| Historical election parameters | Seven setters emitted no events, so past values were unrecoverable | events on the setters, plus `electionPeriods()`, `electionQuorums()`, `termLength()` | parameters panel with a change history scanned on demand |
 | Vote stake held in a Vesting contract | Not a contract gap — the passthroughs and `VestingFactory.getVesting` exist. `VestingFactory` is simply not registered in gov3's AddressManager | register it (carried by the upgrade proposal) | pending adoption; the factory key is already resolved |
 
 ## Architecture and trust model
@@ -108,7 +108,7 @@ The Vite base path is `/genlayer-consensus-governance/`, routing uses URL hashes
 
 ## Current limitations
 
-- Council actions and election candidates are rebuilt from logs within a scanned range, because neither contract exposes enumeration. Completeness cannot be proven — see Phase 3.
+- Council actions are rebuilt from logs within a scanned range, because the contract exposes no enumeration on this deployment; election candidates are too where `candidatesOf` is absent or empty. Completeness cannot be proven on that path, and the page says so — see Phase 3.
 - Known ABI decoding is limited to signatures entered by the proposer. Stored operations always retain a raw selector, arguments, value, calldata, and verified payload commitment.
 - Creation-time staking epoch validation is authoritative only in the `propose` preflight, because the pinned governance `ContractSet` does not include the staking router.
 - L1 bridge progress is represented in the proposal lifecycle, but a deployed bridge/executor and its live events are required for transaction-specific L1 status.

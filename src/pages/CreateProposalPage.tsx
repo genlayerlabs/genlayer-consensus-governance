@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDown, ArrowUp, Check, CircleAlert, FileText, LoaderCircle, Plus, Trash2 } from 'lucide-react'
+import { Criterion } from '@/components/Criterion'
 import { decodeEventLog, type Hex } from 'viem'
 import { useWallet } from '@/config/WalletContext'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
@@ -26,10 +27,6 @@ interface DraftOperation {
 
 const emptyOperation = (): DraftOperation => ({ target: '', mode: 'abi', signature: '', argsJson: '[]', rawSelector: '0x', rawArgs: '0x', value: '0' })
 const defaultLimits = { description: 16_384, operations: 32, operationArgs: 8_192, payload: 65_536 }
-
-function Criterion({ met, children, pending = false }: { met: boolean; children: React.ReactNode; pending?: boolean }) {
-  return <li className={met ? 'met' : ''}><span>{pending ? <LoaderCircle className="spin" size={15} /> : met ? <Check size={15} /> : <CircleAlert size={15} />}</span>{children}</li>
-}
 
 export function CreateProposalPage() {
   const navigate = useNavigate()
