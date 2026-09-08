@@ -4,7 +4,20 @@
   "commit": "c592217870ea964b9fd7511253f8c498df9fae52",
   "note": "Generated contract ABIs vendored for a deterministic static build. Refresh when the dependency cut changes.",
   "additions": {
-    "SecurityCouncil.json": "Added for CON-862. Extracted from the same working tree at 9a7a24235. That tree carries the deployment_gov3 testnet timing overrides, which change constant VALUES inside function bodies only — no function, event or error signature differs from upstream, so the ABI is interchangeable.",
+    "SecurityCouncil.json": "Added for CON-862. Extracted from the same working tree at 9a7a24235. That tree carries the deployment_gov3 testnet timing overrides, which change constant VALUES inside function bodies only \u2014 no function, event or error signature differs from upstream, so the ABI is interchangeable.",
     "GovernanceCouncilElections.json": "Added for CON-862, same extraction and the same signature-identity note."
-  }
+  },
+  "cuts": [
+    {
+      "commit": "1351ca344990baef677e081e68e6050e4fb0330c",
+      "branch": "con-864-governance-read-surface",
+      "pullRequest": 1563,
+      "files": [
+        "GovernanceVoting.json",
+        "SecurityCouncil.json",
+        "GovernanceCouncilElections.json"
+      ],
+      "note": "CON-864 read surface: additive views and events only, no signature removed. Compiled from source at this commit (the upstream artifacts/ directory is untracked, so never copied from disk); the gov3 timing overrides change constants inside function bodies only, so the ABI is the same with or without them."
+    }
+  ]
 }

@@ -227,3 +227,13 @@ describe('governance helpers', () => {
     expect(electionCranks(6)).toEqual([])
   })
 })
+
+describe('operation builder signature hygiene', () => {
+  it('tolerates trailing whitespace and zero-width characters in a pasted signature', () => {
+    const base = { target: '0x0000000000000000000000000000000000000001', mode: 'abi' as const, argsJson: '[["A"],["0x0000000000000000000000000000000000000002"]]', rawSelector: '0x', rawArgs: '0x', value: '0' }
+    const clean = encodeOperation({ ...base, signature: 'setAddresses(string[],address[])' })
+    expect(encodeOperation({ ...base, signature: 'setAddresses(string[],address[]) ' }).selector).toBe(clean.selector)
+    expect(encodeOperation({ ...base, signature: 'setAddresses(string[],address[])\u200B' }).selector).toBe(clean.selector)
+    expect(clean.selector).toBe('0x7d69a892')
+  })
+})

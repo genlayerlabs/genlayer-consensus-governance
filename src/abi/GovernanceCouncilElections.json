@@ -420,6 +420,31 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "candidateBond",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "registrationFee",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "storageFeePerByte",
+        "type": "uint256"
+      }
+    ],
+    "name": "ElectionEconomicsSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "uint256",
         "name": "electionId",
@@ -445,6 +470,62 @@
       }
     ],
     "name": "ElectionFailed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "registration",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "endorsement",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "preparation",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "voting",
+        "type": "uint48"
+      }
+    ],
+    "name": "ElectionPeriodsSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "quorumBps",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "minSupportBps",
+        "type": "uint16"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint16",
+        "name": "refundFloorBps",
+        "type": "uint16"
+      }
+    ],
+    "name": "ElectionQuorumsSet",
     "type": "event"
   },
   {
@@ -656,6 +737,56 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "ratifyGrace",
+        "type": "uint48"
+      }
+    ],
+    "name": "RatifyGraceSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "registration",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "endorsement",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "preparation",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "voting",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "cooldown",
+        "type": "uint48"
+      }
+    ],
+    "name": "RecallParametersSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "uint256",
         "name": "actionId",
@@ -681,6 +812,25 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "slateCap",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "alternateSlots",
+        "type": "uint8"
+      }
+    ],
+    "name": "SlateParametersSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "uint256",
         "name": "electionId",
@@ -694,6 +844,19 @@
       }
     ],
     "name": "SlateSealed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "termLength",
+        "type": "uint48"
+      }
+    ],
+    "name": "TermLengthSet",
     "type": "event"
   },
   {
@@ -740,12 +903,85 @@
         "type": "address"
       }
     ],
+    "name": "candidateOf",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "nominated",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "withdrawn",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "slated",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "bondClaimed",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "autoNominated",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "bond",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "nominationSeq",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "electionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "candidate",
+        "type": "address"
+      }
+    ],
     "name": "candidateWeight",
     "outputs": [
       {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "electionId",
+        "type": "uint256"
+      }
+    ],
+    "name": "candidatesOf",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
       }
     ],
     "stateMutability": "view",
@@ -854,6 +1090,85 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "electionEconomics",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "candidateBond",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "registrationFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "storageFeePerByte",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "electionPeriods",
+    "outputs": [
+      {
+        "internalType": "uint48",
+        "name": "registration",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "endorsement",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "preparation",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "voting",
+        "type": "uint48"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "electionQuorums",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "quorumBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "quorumFloorBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "minSupportBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "refundFloorBps",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -910,6 +1225,142 @@
         "internalType": "address[]",
         "name": "alternates",
         "type": "address[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "electionId",
+        "type": "uint256"
+      }
+    ],
+    "name": "elections",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum IGovernanceCouncilElections.ElectionKind",
+            "name": "kind",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "cohortId",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "seatsAtStake",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint48",
+            "name": "creationTime",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "fStart",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "registrationEnd",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "nominationEnd",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "voteStartOffset",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "voteEndOffset",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "endorsementSnapshot",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint16",
+            "name": "quorumBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "bool",
+            "name": "sealed_",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "settled",
+            "type": "bool"
+          },
+          {
+            "internalType": "bool",
+            "name": "failed",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint48",
+            "name": "termEnd",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint256",
+            "name": "parentElection",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "turnout",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "rankingCommitment",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint16",
+            "name": "minSupportBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "refundFloorBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "address",
+            "name": "gesRegistry",
+            "type": "address"
+          },
+          {
+            "internalType": "uint8",
+            "name": "slateCap",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "alternateSlots",
+            "type": "uint8"
+          }
+        ],
+        "internalType": "struct IGovernanceCouncilElections.ElectionInfo",
+        "name": "info",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -1594,6 +2045,19 @@
         "internalType": "enum IGovernanceCouncilElections.ElectionState",
         "name": "",
         "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "termLength",
+    "outputs": [
+      {
+        "internalType": "uint48",
+        "name": "",
+        "type": "uint48"
       }
     ],
     "stateMutability": "view",

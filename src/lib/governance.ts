@@ -191,7 +191,10 @@ export function encodeOperation(input: {
   let selector: Hex
   let args: Hex
   if (input.mode === 'abi') {
-    const item = parseAbiItem(`function ${input.signature}`)
+    // Trimmed: a signature pasted from a rendered page can carry a trailing
+    // space or a zero-width character, and abitype rejects the whole string
+    // as "Unknown signature" for it.
+    const item = parseAbiItem(`function ${input.signature.replace(/[\s\u200B-\u200D\uFEFF]+/g, ' ').trim()}`)
     if (item.type !== 'function') throw new Error('Enter a Solidity function signature')
     const values = JSON.parse(input.argsJson || '[]')
     if (!Array.isArray(values)) throw new Error('Arguments must be a JSON array')
@@ -543,7 +546,7 @@ export function errorMessage(error: unknown): string {
     BelowProposalThreshold: 'The account does not meet the proposal voting-power threshold.',
     // Council and GLF roles (CON-862). Neither GLF role has a getter, so these
     // refusals are the only way the UI can report that authorisation failed.
-    OnlyGLFSigner: 'Only the GLF veto signer may do this. The contract exposes no getter for that role, so the UI cannot check it in advance.',
+    OnlyGLFSigner: 'Only the GLF veto signer may do this.',
     OnlyGLFMember: 'Only a Charter-registered GLF member may extend the veto window, and it takes two distinct members.',
     EmptyRationale: 'A veto must commit to a rationale — the zero hash would leave it unauditable.',
     NotSitting: 'Creating or approving a council action requires a seat with status Active. An elected but unactivated seat cannot.',

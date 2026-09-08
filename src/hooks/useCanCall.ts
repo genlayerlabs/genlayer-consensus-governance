@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Abi, Address } from 'viem'
 import { publicClient } from '@/config/clients'
 import { errorMessage } from '@/lib/governance'
+import { classifyReadError } from '@/lib/optionalRead'
 
 /**
  * Ask the chain whether the connected account may make a call, by simulating
@@ -48,9 +49,9 @@ export function useCanCall(params: {
       .then(() => { if (!cancelled) { setAllowed(true); setReason('') } })
       .catch((error: unknown) => {
         if (cancelled) return
-        // A revert answers the question; a transport failure does not.
-        const name = (error as { name?: string })?.name ?? ''
-        const reverted = name === 'ContractFunctionExecutionError' || name === 'ContractFunctionRevertedError'
+        // A revert answers the question; a transport failure does not. The
+        // same discriminator sorts optional reads, so the two cannot drift.
+        const reverted = 'absent' in classifyReadError(error)
         setAllowed(reverted ? false : undefined)
         // errorMessage puts its translation first and the raw viem text after a
         // blank line; keep the translation, and drop a raw preamble that only

@@ -10,6 +10,7 @@ import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
 import { normalizeCore, normalizePostVote, normalizeRules, normalizeVotes, titleFromDescription } from '@/lib/governance'
 import { readCache, writeCache } from '@/lib/logCache'
+import { isPresent, tryRead } from '@/lib/optionalRead'
 import { findLatestLogBackwards, scanLogs } from '@/lib/rpc'
 import type { ContractSet, ProposalSummary } from '@/lib/types'
 
@@ -122,7 +123,9 @@ export function useProposals() {
   /**
    * Enumerate ids instead of scanning for ProposalCreated.
    *
-   * Ids are sequential from 1 and `state(id)` reverts UnknownProposal past the
+   * Ids are sequential from 1, so `proposalCount()` (CON-864) IS the list: one
+   * read. A deployment that predates the getter reverts on it, and then the
+   * older method still holds: `state(id)` reverts UnknownProposal past the
    * end, so walking upward until a gap yields the COMPLETE list for N+1 cheap
    * eth_calls — no log range, no cap, no cursor, and nothing that can be
    * missed. The old paged scan stopped at the first window that returned any
@@ -138,9 +141,14 @@ export function useProposals() {
     setLoading(true); setError(undefined)
     try {
       const ids: bigint[] = []
-      // Probed in batches so a long list costs a handful of round trips
-      // rather than one per proposal; the batch stops at the first gap.
-      for (let base = 1n; ; base += BigInt(PROBE_BATCH)) {
+      setProgress('Counting proposals')
+      const count = await tryRead<bigint>({ address: voting, abi: GovernanceVotingABI as never, functionName: 'proposalCount' })
+      if (isPresent(count)) {
+        for (let id = 1n; id <= count.value; id += 1n) ids.push(id)
+      } else for (let base = 1n; ; base += BigInt(PROBE_BATCH)) {
+        // No getter here (or no answer): probed in batches so a long list
+        // costs a handful of round trips rather than one per proposal; the
+        // batch stops at the first gap.
         setProgress(`Reading proposals ${base}–${base + BigInt(PROBE_BATCH) - 1n}`)
         const probes = await Promise.all(Array.from({ length: PROBE_BATCH }, (_unused, offset) =>
           publicClient.readContract({ address: voting, abi: GovernanceVotingABI as any, functionName: 'state', args: [base + BigInt(offset)] } as never)
