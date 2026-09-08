@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Check, LoaderCircle } from 'lucide-react'
-import type { Abi, Address } from 'viem'
+import { decodeEventLog, type Abi, type Address } from 'viem'
 import GovernanceVotingABI from '@/abi/GovernanceVoting.json'
 import { publicClient } from '@/config/clients'
 import { useWallet } from '@/config/WalletContext'
@@ -82,6 +82,29 @@ export function TransactionButton({ address, abi, functionName, args, value, gas
       // "Confirmed" over a failed council execution, which is the one place a
       // false success is most expensive: the action stays unconsumed and the
       // member walks away believing it landed.
+      // A transaction can succeed while the thing it was for did not:
+      // GovernanceVoting.execute runs the operation batch in a self-call and
+      // records ProposalExecutionFailed instead of reverting. Without this the
+      // button read "Confirmed" over an upgrade that had not happened (gov3
+      // proposal 7). Name it, and when the shape is out-of-gas, say what to
+      // change on the retry.
+      const batchFailure = receipt.logs.flatMap((log) => {
+        try {
+          const decoded = decodeEventLog({ abi: (abi ?? GovernanceVotingABI) as Abi, data: log.data, topics: log.topics }) as { eventName: string; args?: Record<string, unknown> }
+          return decoded.eventName === 'ProposalExecutionFailed' ? [decoded] : []
+        } catch { return [] }
+      })[0]
+      if (batchFailure) {
+        let limit: bigint | undefined
+        try { limit = (await publicClient.getTransaction({ hash: transactionHash! })).gas } catch { /* the diagnosis below degrades to the generic text */ }
+        const outOfGas = limit !== undefined && receipt.gasUsed * 100n >= limit * 90n
+        const retry = batchFailure.args?.retryAllowed === true
+        setHash(undefined)
+        setError(outOfGas
+          ? `The transaction was mined, but the operation batch ran out of gas inside it (${receipt.gasUsed.toLocaleString()} of ${limit!.toLocaleString()} used) and was recorded as ProposalExecutionFailed. Nothing changed on-chain${retry ? ' and the proposal can be retried' : ''}. Wallet estimates undershoot for execute; on the retry set the gas limit to at least ${(receipt.gasUsed * 3n).toLocaleString()} in the wallet's advanced gas settings.`
+          : `The transaction was mined, but an operation reverted inside it and the proposal recorded ProposalExecutionFailed. Nothing changed on-chain${retry ? '; the proposal can be retried once the cause is fixed' : ''}. Run the payload through the Create proposal preflight to see which operation reverts now.`)
+        return
+      }
       if (receipt.status !== 'success') {
         // The receipt carries no reason, so replay the same call at head to
         // recover one — the state that rejected it is still the live state.
