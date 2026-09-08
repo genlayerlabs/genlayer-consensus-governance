@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import type { Address } from 'viem'
 import GovernanceCouncilElectionsABI from '@/abi/GovernanceCouncilElections.json'
@@ -24,7 +24,7 @@ import {
 } from '@/lib/governance'
 import { describeMissing, isPresent } from '@/lib/optionalRead'
 import { explorerAddress, explorerTx } from '@/lib/rpc'
-import type { ElectionSummary } from '@/lib/types'
+import type { ElectionCandidate, ElectionSummary } from '@/lib/types'
 
 const HINTS = {
   projection:
@@ -137,23 +137,9 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
     {open && <>
       {candidates.candidates.length > 1 && candidates.complete && <p className="hint">
         Order: <button type="button" className="link-button" onClick={() => setOrder(order === 'weight' ? 'nomination' : 'weight')}>{order === 'weight' ? 'by weight' : 'as nominated'}</button></p>}
-      <div className="voter-list">{sorted.map((candidate) => <article key={candidate.address}>
-        <span className={`vote-dot support-${candidate.withdrawn ? 0 : candidate.slated ? 1 : 2}`} />
-        <a href={explorerAddress(candidate.address)} target="_blank" rel="noreferrer">{shortAddress(candidate.address)}</a>
-        <b>{formatGen(candidate.weight)} GEN</b>
-        <span>{candidate.withdrawn ? 'Withdrawn' : candidate.slated ? 'Slated' : 'Nominated'}{candidate.autoNominated ? ' · incumbent' : ''}</span>
-        <span>{candidate.autoNominated ? 'No bond' : candidate.bondClaimed ? `Bond ${candidate.withdrawn ? 'refunded' : 'claimed'}` : `Bond ${formatGen(candidate.bond)} GEN`}</span>
-        <p>{election.winners.some((winner) => winner.toLowerCase() === candidate.address.toLowerCase())
-          ? 'Elected'
-          : election.alternates.some((alternate) => alternate.toLowerCase() === candidate.address.toLowerCase())
-            ? 'Alternate'
-            : 'Not seated'}</p>
-        <span className="row-actions">
-          <CandidateManifesto elections={elections} electionId={election.id} candidate={candidate.address} />
-          {mayEndorse && !candidate.withdrawn && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} functionName="endorse" args={[election.id, candidate.address]} variant="ghost" onConfirmed={() => { void candidates.refresh(); onChanged() }}>Endorse</TransactionButton>}
-          {inRegistration && own(candidate.address) && !candidate.withdrawn && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} functionName="withdrawCandidacy" args={[election.id]} variant="ghost" onConfirmed={() => { void candidates.refresh(); onChanged() }}>Withdraw</TransactionButton>}
-        </span>
-      </article>)}
+      <div className="voter-list">{sorted.map((candidate) => <CandidateRow key={candidate.address} candidate={candidate} election={election} elections={elections}
+        mayEndorse={mayEndorse} mayWithdraw={inRegistration && own(candidate.address)}
+        onChanged={() => { void candidates.refresh(); onChanged() }} />)}
       {!candidates.loading && candidates.candidates.length === 0 && <div className="empty inline">
         <p>{candidates.complete ? 'No candidates.' : 'No candidates found in the scanned range.'}</p></div>}
       </div>
@@ -209,19 +195,51 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
 }
 
 /** The on-chain manifesto, read on demand: it can be 16 KB, and most visitors never open it. */
+function CandidateRow({ candidate, election, elections, mayEndorse, mayWithdraw, onChanged }: {
+  candidate: ElectionCandidate; election: ElectionSummary; elections?: Address; mayEndorse: boolean; mayWithdraw: boolean; onChanged: () => void
+}) {
+  // The manifesto opens as a full-width line UNDER the cells, not inside the
+  // actions column: each row is its own grid, so a manifesto growing inside
+  // the last track widened it and shifted that one row's columns out of line
+  // with its neighbours.
+  const [manifestoOpen, setManifestoOpen] = useState(false)
+  const seat = election.winners.some((winner) => winner.toLowerCase() === candidate.address.toLowerCase())
+    ? 'Elected'
+    : election.alternates.some((alternate) => alternate.toLowerCase() === candidate.address.toLowerCase())
+      ? 'Alternate'
+      : 'Not seated'
+  return <article>
+    <span className={`vote-dot support-${candidate.withdrawn ? 0 : candidate.slated ? 1 : 2}`} />
+    <a href={explorerAddress(candidate.address)} target="_blank" rel="noreferrer">{shortAddress(candidate.address)}</a>
+    <b>{formatGen(candidate.weight)} GEN</b>
+    <span>{candidate.withdrawn ? 'Withdrawn' : candidate.slated ? 'Slated' : 'Nominated'}{candidate.autoNominated ? ' · incumbent' : ''}</span>
+    <span>{candidate.autoNominated ? 'No bond' : candidate.bondClaimed ? `Bond ${candidate.withdrawn ? 'refunded' : 'claimed'}` : `Bond ${formatGen(candidate.bond)} GEN`}</span>
+    <p>{seat}</p>
+    <span className="row-actions">
+      <button type="button" className="link-button manifesto-toggle" aria-expanded={manifestoOpen} onClick={() => setManifestoOpen((value) => !value)}>
+        {manifestoOpen ? '▾' : '▸'} Manifesto</button>
+      {mayEndorse && !candidate.withdrawn && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} functionName="endorse" args={[election.id, candidate.address]} variant="ghost" onConfirmed={onChanged}>Endorse</TransactionButton>}
+      {mayWithdraw && !candidate.withdrawn && <TransactionButton address={elections} abi={GovernanceCouncilElectionsABI as never} functionName="withdrawCandidacy" args={[election.id]} variant="ghost" onConfirmed={onChanged}>Withdraw</TransactionButton>}
+    </span>
+    {manifestoOpen && <CandidateManifesto elections={elections} electionId={election.id} candidate={candidate.address} />}
+  </article>
+}
+
+/** Mounted only while open, so the read happens on first expand and never for rows nobody looks at. */
 function CandidateManifesto({ elections, electionId, candidate }: { elections?: Address; electionId: bigint; candidate: Address }) {
   const [text, setText] = useState<string>()
   const [failed, setFailed] = useState(false)
-  const load = async () => {
-    if (text !== undefined || !elections) return
-    try {
-      setText(await publicClient.readContract({ address: elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'candidateManifesto', args: [electionId, candidate] } as never) as string)
-    } catch { setFailed(true) }
-  }
-  return <details className="manifesto" onToggle={(event) => { if ((event.target as HTMLDetailsElement).open) void load() }}>
-    <summary>Manifesto</summary>
+  useEffect(() => {
+    if (!elections) return
+    let cancelled = false
+    publicClient.readContract({ address: elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'candidateManifesto', args: [electionId, candidate] } as never)
+      .then((value) => { if (!cancelled) setText(value as string) })
+      .catch(() => { if (!cancelled) setFailed(true) })
+    return () => { cancelled = true }
+  }, [elections, electionId, candidate])
+  return <div className="manifesto-body">
     {failed ? <p className="hint">The manifesto could not be read.</p> : text === undefined ? <p className="hint">Reading…</p> : text.trim() ? <pre className="raw-text">{text}</pre> : <p className="hint">Empty manifesto.</p>}
-  </details>
+  </div>
 }
 
 function bps(value: number) { return `${value / 100}%` }
