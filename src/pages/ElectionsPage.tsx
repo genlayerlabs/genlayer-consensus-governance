@@ -149,6 +149,16 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
           ? <p className="hint">This account is a candidate in this election. Withdraw from its row above while registration is open; the bond is refunded on the spot.</p>
           : <NominateForm election={election} elections={elections!} economics={economics} onNominated={() => { void candidates.refresh(); onChanged() }} />
         : <p className="hint">Nomination is not offered on this deployment: <code>nominate</code> demands an exact value of bond + registration fee + manifesto storage, and none of the three is readable here.</p>)}
+      {/* The slate is built ONLY from endorsements: nominating puts a name on
+          the roll, endorsing is what lifts it into the top set the ballot is
+          restricted to. A round that ends endorsement with nobody endorsed
+          seals an empty slate, every ballot reverts NotSlated, and settle
+          fails it on quorum — a silent outcome unless the page says so. */}
+      {election.state >= 1 && election.state <= 3 && election.slate.length === 0 && candidates.candidates.length > 0 && !(election.state === 1 && election.subPhase === 'registration') && <div className="error-box">
+        {election.state === 1
+          ? 'No candidate has been endorsed yet. Only endorsed candidates reach the slate the ballot is restricted to: if endorsement closes with an empty slate, no ballot can be cast and this election fails at settle.'
+          : 'The slate is empty: no candidate was endorsed while endorsement was open. No ballot can be cast, and this election fails at settle; the retry that follows starts with registration again.'}
+      </div>}
       {mayEndorse && <p className="hint">Endorse up to three candidates; each endorsement carries this account's weight at the endorsement snapshot. Endorsing promotes a candidate towards the sealed slate.</p>}
       {cranks.some((crank) => crank.fn === 'castBallot') && <div className="form-grid">
         {address && identities.identities.length > 1 && <div className="full"><IdentityPicker label="Ballot as" identities={identities.identities} selected={ballotAs} onSelect={setBallotAs} loading={identities.loading} error={identities.error} /></div>}
