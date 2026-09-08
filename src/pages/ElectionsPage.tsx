@@ -23,7 +23,7 @@ import {
   formatDate, formatDuration, formatGen, formatPercent, formatRelative, shortAddress, type NominationEconomics,
 } from '@/lib/governance'
 import { describeMissing, isPresent } from '@/lib/optionalRead'
-import { explorerAddress, explorerTx } from '@/lib/rpc'
+import { explorerAddress, explorerTx, scanLogs } from '@/lib/rpc'
 import type { ElectionCandidate, ElectionSummary } from '@/lib/types'
 
 const HINTS = {
@@ -63,6 +63,21 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
   const ballotOpen = open && election.state === 3
   const identities = useVoterIdentities(ballotOpen ? { electionId: election.id, snapshot: election.snapshotInstant ?? election.bounds?.voteStart ?? election.voteStart } : {})
   const ballotIdentity = identities.identities.find((entry) => entry.kind !== 'eoa' && entry.address === ballotAs) ?? (address ? { kind: 'eoa' as const, address } : undefined)
+  // hasBalloted for whichever identity the ballot would go out as. The hook
+  // answers it for the EOA row too; without this the form came straight back
+  // after a cast, inviting a second ballot the contract rejects.
+  const ballotState = ballotIdentity ? identities.identities.find((entry) => entry.address.toLowerCase() === ballotIdentity.address.toLowerCase()) : undefined
+  const alreadyBalloted = ballotState?.hasVoted === true
+  const [castPicks, setCastPicks] = useState<Address[]>()
+  useEffect(() => {
+    if (!alreadyBalloted || !elections || !ballotIdentity) { setCastPicks(undefined); return }
+    let cancelled = false
+    scanLogs({ address: elections, abi: GovernanceCouncilElectionsABI as never, eventName: 'BallotCast' as never, args: { electionId: election.id, voter: ballotIdentity.address }, fromBlock: election.blockNumber })
+      .then((logs) => { if (!cancelled) setCastPicks(((logs as any[])[0]?.args.candidates as Address[] | undefined) ?? []) })
+      .catch(() => { if (!cancelled) setCastPicks([]) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alreadyBalloted, elections, ballotIdentity?.address, election.id, election.blockNumber])
 
   const picked = picks.split(',').map((value) => value.trim()).filter(Boolean)
   const isPicked = (candidate: Address) => picked.some((pick) => pick.toLowerCase() === candidate.toLowerCase())
@@ -165,7 +180,7 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
         Order: <button type="button" className="link-button" onClick={() => setOrder(order === 'weight' ? 'nomination' : 'weight')}>{order === 'weight' ? 'by weight' : 'as nominated'}</button></p>}
       <div className="voter-list">{sorted.map((candidate) => <CandidateRow key={candidate.address} candidate={candidate} election={election} elections={elections}
         mayEndorse={mayEndorse} mayWithdraw={inRegistration && own(candidate.address)}
-        pick={election.state === 3 ? { picked: isPicked(candidate.address), full: picked.length >= 3, toggle: () => togglePick(candidate.address) } : undefined}
+        pick={election.state === 3 && !alreadyBalloted ? { picked: isPicked(candidate.address), full: picked.length >= 3, toggle: () => togglePick(candidate.address) } : undefined}
         onChanged={() => { void candidates.refresh(); onChanged() }} />)}
       {!candidates.loading && candidates.candidates.length === 0 && <div className="empty inline">
         <p>{candidates.complete ? 'No candidates.' : 'No candidates found in the scanned range.'}</p></div>}
@@ -189,16 +204,20 @@ function ElectionCard({ election, elections, economics, onChanged }: { election:
       {mayEndorse && <p className="hint">Endorse up to three candidates; each endorsement carries this account's weight at the endorsement snapshot. Endorsing promotes a candidate towards the sealed slate.</p>}
       {cranks.some((crank) => crank.fn === 'castBallot') && <div className="form-grid">
         {address && identities.identities.length > 1 && <div className="full"><IdentityPicker label="Ballot as" identities={identities.identities} selected={ballotAs} onSelect={setBallotAs} loading={identities.loading} error={identities.error} /></div>}
-        <label className="full"><span className="label-text">Ballot — one to three slated candidates<InfoHint text={HINTS.ballot} /></span>
+        {ballotState && <div className="full your-power"><small>Weight at the vote snapshot</small><b>{formatGen(ballotState.weight)} GEN</b>
+          <p>{alreadyBalloted
+            ? castPicks === undefined ? 'Ballot cast.' : castPicks.length === 0 ? 'Ballot cast; the picks could not be read.' : `Ballot cast for ${castPicks.map((pick) => shortAddress(pick)).join(', ')}.`
+            : ballotState.weight === 0n ? 'No weight at the snapshot: a ballot from this account would revert.' : 'Not balloted yet.'}</p></div>}
+        {!alreadyBalloted && <label className="full"><span className="label-text">Ballot — one to three slated candidates<InfoHint text={HINTS.ballot} /></span>
           <input value={picks} onChange={(event) => setPicks(event.target.value)} placeholder="0xabc…, 0xdef…" />
-        </label>
+        </label>}
       </div>}
       <div className="action-buttons">
         {/* Only the crank this phase actually accepts. The others are not
             disabled but absent: startEndorsement is idempotent, so calling it
             twice succeeds silently and the button would sit there reading
             "Confirmed" forever, inviting a second pointless transaction. */}
-        {cranks.map((crank) => {
+        {cranks.filter((crank) => !(crank.fn === 'castBallot' && alreadyBalloted)).map((crank) => {
           const ballot = crank.fn === 'castBallot' && ballotIdentity && elections ? ballotRoute(ballotIdentity, elections, election.id, picked as Address[]) : undefined
           return <TransactionButton key={crank.fn}
             address={ballot?.address ?? elections} abi={ballot ? ABI_BY_KEY[ballot.abi] : (GovernanceCouncilElectionsABI as never)}
