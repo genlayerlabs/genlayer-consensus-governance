@@ -180,6 +180,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoActiveIncident",
     "type": "error"
   },
@@ -282,6 +287,11 @@
   {
     "inputs": [],
     "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RegistryBindingLocked",
     "type": "error"
   },
   {
@@ -612,43 +622,6 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "voting",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "executor",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "clock",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "elections",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "votingPower",
-        "type": "address"
-      }
-    ],
-    "name": "PeersUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "uint8",
         "name": "seat",
@@ -969,6 +942,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "addressManager",
+    "outputs": [
+      {
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint8",
@@ -1065,7 +1051,7 @@
     "name": "clock",
     "outputs": [
       {
-        "internalType": "contract IGovernanceClock",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -1171,27 +1157,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_voting",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_executor",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_clock",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_elections",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_votingPower",
+        "name": "_addressManager",
         "type": "address"
       },
       {
@@ -1358,12 +1324,12 @@
   },
   {
     "inputs": [],
-    "name": "migrationVersion",
+    "name": "protocolComponentId",
     "outputs": [
       {
-        "internalType": "uint64",
+        "internalType": "bytes32",
         "name": "",
-        "type": "uint64"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "pure",
@@ -1481,39 +1447,6 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_voting",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_executor",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_clock",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_elections",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_votingPower",
-        "type": "address"
-      }
-    ],
-    "name": "setPeers",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint48",
         "name": "_activationWindow",
         "type": "uint48"
@@ -1622,7 +1555,7 @@
     "name": "voting",
     "outputs": [
       {
-        "internalType": "contract IGovernanceVoting",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -1635,7 +1568,7 @@
     "name": "votingPower",
     "outputs": [
       {
-        "internalType": "contract IGovernanceVotingPower",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }

@@ -80,6 +80,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NotInitializing",
     "type": "error"
   },
@@ -113,6 +118,11 @@
       }
     ],
     "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RegistryBindingLocked",
     "type": "error"
   },
   {
@@ -285,6 +295,19 @@
   },
   {
     "inputs": [],
+    "name": "addressManager",
+    "outputs": [
+      {
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "currentGES",
     "outputs": [
       {
@@ -324,7 +347,7 @@
       },
       {
         "internalType": "address",
-        "name": "_stakingRouter",
+        "name": "_addressManager",
         "type": "address"
       },
       {
@@ -354,19 +377,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "migrationVersion",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -441,6 +451,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "protocolComponentId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -484,19 +507,6 @@
   {
     "inputs": [],
     "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_votingPowerLedger",
-        "type": "address"
-      }
-    ],
-    "name": "setVotingPowerLedger",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

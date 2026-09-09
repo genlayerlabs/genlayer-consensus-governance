@@ -42,6 +42,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "MaintenanceAlreadyActive",
     "type": "error"
   },
@@ -94,21 +99,13 @@
   },
   {
     "inputs": [],
-    "name": "WindowBudgetExhausted",
+    "name": "RegistryBindingLocked",
     "type": "error"
   },
   {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "freezeAuthority",
-        "type": "address"
-      }
-    ],
-    "name": "FreezeAuthoritySet",
-    "type": "event"
+    "inputs": [],
+    "name": "WindowBudgetExhausted",
+    "type": "error"
   },
   {
     "anonymous": false,
@@ -226,19 +223,6 @@
     "type": "event"
   },
   {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "votingPower",
-        "type": "address"
-      }
-    ],
-    "name": "VotingPowerSet",
-    "type": "event"
-  },
-  {
     "inputs": [],
     "name": "HARD_CAP",
     "outputs": [
@@ -299,6 +283,19 @@
   },
   {
     "inputs": [],
+    "name": "addressManager",
+    "outputs": [
+      {
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "beginMaintenance",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -322,19 +319,6 @@
     "name": "freeze",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "freezeAuthority",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -391,12 +375,7 @@
       },
       {
         "internalType": "address",
-        "name": "_freezeAuthority",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_votingPower",
+        "name": "_addressManager",
         "type": "address"
       }
     ],
@@ -416,19 +395,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "migrationVersion",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -459,33 +425,20 @@
   },
   {
     "inputs": [],
+    "name": "protocolComponentId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "renounceOwnership",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_freezeAuthority",
-        "type": "address"
-      }
-    ],
-    "name": "setFreezeAuthority",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_votingPower",
-        "type": "address"
-      }
-    ],
-    "name": "setVotingPower",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -541,19 +494,6 @@
     "name": "unfreeze",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "votingPower",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "",
-        "type": "address"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

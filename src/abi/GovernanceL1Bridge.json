@@ -16,6 +16,11 @@
   },
   {
     "inputs": [],
+    "name": "InvalidRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "L1ExecutorUnset",
     "type": "error"
   },
@@ -31,7 +36,7 @@
   },
   {
     "inputs": [],
-    "name": "ZeroExecutor",
+    "name": "RegistryBindingLocked",
     "type": "error"
   },
   {
@@ -118,6 +123,19 @@
   },
   {
     "inputs": [],
+    "name": "addressManager",
+    "outputs": [
+      {
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "executor",
     "outputs": [
       {
@@ -133,7 +151,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_executor",
+        "name": "_addressManager",
         "type": "address"
       },
       {
@@ -162,12 +180,12 @@
   },
   {
     "inputs": [],
-    "name": "migrationVersion",
+    "name": "protocolComponentId",
     "outputs": [
       {
-        "internalType": "uint64",
+        "internalType": "bytes32",
         "name": "",
-        "type": "uint64"
+        "type": "bytes32"
       }
     ],
     "stateMutability": "pure",

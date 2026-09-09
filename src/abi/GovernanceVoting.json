@@ -5,17 +5,6 @@
     "type": "constructor"
   },
   {
-    "inputs": [
-      {
-        "internalType": "uint48",
-        "name": "provided",
-        "type": "uint48"
-      }
-    ],
-    "name": "AbortWindowOutOfRange",
-    "type": "error"
-  },
-  {
     "inputs": [],
     "name": "AlreadyExtended",
     "type": "error"
@@ -61,107 +50,6 @@
       }
     ],
     "name": "BelowProposalThreshold",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint8",
-        "name": "slot",
-        "type": "uint8"
-      }
-    ],
-    "name": "ContractSetConsumerMissing",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint8",
-        "name": "slot",
-        "type": "uint8"
-      },
-      {
-        "internalType": "address",
-        "name": "owner",
-        "type": "address"
-      }
-    ],
-    "name": "ContractSetMemberNotGoverned",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint8",
-        "name": "slot",
-        "type": "uint8"
-      },
-      {
-        "internalType": "bytes4",
-        "name": "probe",
-        "type": "bytes4"
-      },
-      {
-        "internalType": "address",
-        "name": "expected",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "actual",
-        "type": "address"
-      }
-    ],
-    "name": "ContractSetPeerMismatch",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes4",
-        "name": "probe",
-        "type": "bytes4"
-      },
-      {
-        "internalType": "address",
-        "name": "expected",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "actual",
-        "type": "address"
-      }
-    ],
-    "name": "ContractSetProducerMismatch",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "voting",
-        "type": "address"
-      }
-    ],
-    "name": "ContractSetVotingMismatch",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "DrainIncomplete",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "proposalId",
-        "type": "uint256"
-      }
-    ],
-    "name": "DrainedByMigration",
     "type": "error"
   },
   {
@@ -229,23 +117,12 @@
   },
   {
     "inputs": [],
-    "name": "InvalidContractSet",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "coordinator",
-        "type": "address"
-      }
-    ],
-    "name": "InvalidCoordinator",
+    "name": "InvalidInitialization",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "InvalidInitialization",
+    "name": "InvalidRegistry",
     "type": "error"
   },
   {
@@ -262,31 +139,6 @@
       }
     ],
     "name": "InvalidSupport",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "MigrationHashMismatch",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "MigrationInProgress",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NoMigration",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotAborter",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotCoordinator",
     "type": "error"
   },
   {
@@ -440,6 +292,11 @@
   },
   {
     "inputs": [],
+    "name": "RegistryBindingLocked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "SameExtender",
     "type": "error"
   },
@@ -451,34 +308,12 @@
   {
     "inputs": [
       {
-        "internalType": "uint8",
-        "name": "slot",
-        "type": "uint8"
-      }
-    ],
-    "name": "SlotDecommissioned",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint48",
         "name": "until",
         "type": "uint48"
       }
     ],
     "name": "SpamCooldownActive",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "StaleContractSet",
     "type": "error"
   },
   {
@@ -543,17 +378,6 @@
       }
     ],
     "name": "UnknownClass",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "UnknownContractSet",
     "type": "error"
   },
   {
@@ -715,85 +539,6 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "ContractSetActivated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "voting",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "votingPower",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "gesRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "classRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "clock",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "executor",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "l1Bridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "council",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "elections",
-            "type": "address"
-          }
-        ],
-        "indexed": false,
-        "internalType": "struct GovernanceTypes.ContractSet",
-        "name": "set",
-        "type": "tuple"
-      }
-    ],
-    "name": "ContractSetRegistered",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
         "internalType": "uint256",
         "name": "actionId",
         "type": "uint256"
@@ -941,75 +686,6 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "migrationHash",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "by",
-        "type": "address"
-      }
-    ],
-    "name": "MigrationAborted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "migrationHash",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "coordinator",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "aborter",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint48",
-        "name": "abortAfter",
-        "type": "uint48"
-      }
-    ],
-    "name": "MigrationBegun",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "migrationHash",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "newContractsHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "MigrationCompleted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
         "type": "address"
@@ -1087,12 +763,6 @@
         "internalType": "uint256",
         "name": "voteEnd",
         "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
       }
     ],
     "name": "ProposalCreated",
@@ -1357,19 +1027,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "expectedMigrationHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "abortMigration",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "acceptExecutorOwnership",
     "outputs": [],
@@ -1384,16 +1041,16 @@
     "type": "function"
   },
   {
-    "inputs": [
+    "inputs": [],
+    "name": "addressManager",
+    "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
       }
     ],
-    "name": "activateContractSet",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1405,108 +1062,6 @@
       }
     ],
     "name": "approveRiskReview",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "coordinator",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "aborter",
-        "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "target",
-            "type": "address"
-          },
-          {
-            "internalType": "bytes4",
-            "name": "selector",
-            "type": "bytes4"
-          },
-          {
-            "internalType": "bytes",
-            "name": "args",
-            "type": "bytes"
-          },
-          {
-            "internalType": "uint256",
-            "name": "value",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct GovernanceTypes.Operation[]",
-        "name": "upgradeOps",
-        "type": "tuple[]"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "voting",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "votingPower",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "gesRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "classRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "clock",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "executor",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "l1Bridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "council",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "elections",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct GovernanceTypes.ContractSet",
-        "name": "newSet",
-        "type": "tuple"
-      },
-      {
-        "internalType": "uint48",
-        "name": "abortAfter",
-        "type": "uint48"
-      }
-    ],
-    "name": "beginMigration",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1605,13 +1160,6 @@
   },
   {
     "inputs": [],
-    "name": "completeMigration",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "consumerKind",
     "outputs": [
       {
@@ -1621,85 +1169,6 @@
       }
     ],
     "stateMutability": "pure",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
-      }
-    ],
-    "name": "contractSet",
-    "outputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "voting",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "votingPower",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "gesRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "classRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "clock",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "executor",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "l1Bridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "council",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "elections",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct GovernanceTypes.ContractSet",
-        "name": "",
-        "type": "tuple"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "currentContractsHash",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1739,19 +1208,6 @@
     "name": "designateSpam",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "drainComplete",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -2093,11 +1549,6 @@
             "type": "bytes32"
           },
           {
-            "internalType": "bytes32",
-            "name": "contractsHash",
-            "type": "bytes32"
-          },
-          {
             "internalType": "uint64",
             "name": "classTimelock",
             "type": "uint64"
@@ -2205,60 +1656,8 @@
       },
       {
         "internalType": "address",
-        "name": "_staking",
+        "name": "_addressManager",
         "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "voting",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "votingPower",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "gesRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "classRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "clock",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "executor",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "l1Bridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "council",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "elections",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct GovernanceTypes.ContractSet",
-        "name": "genesisSet",
-        "type": "tuple"
       }
     ],
     "name": "initialize",
@@ -2283,139 +1682,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "migrationInProgress",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "migrationRecord",
-    "outputs": [
-      {
-        "internalType": "address",
-        "name": "coordinator",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "aborter",
-        "type": "address"
-      },
-      {
-        "internalType": "uint48",
-        "name": "abortAfter",
-        "type": "uint48"
-      },
-      {
-        "internalType": "uint256",
-        "name": "authorizingProposalId",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "voting",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "votingPower",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "gesRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "classRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "clock",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "executor",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "l1Bridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "council",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "elections",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct GovernanceTypes.ContractSet",
-        "name": "newSet",
-        "type": "tuple"
-      },
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "target",
-            "type": "address"
-          },
-          {
-            "internalType": "bytes4",
-            "name": "selector",
-            "type": "bytes4"
-          },
-          {
-            "internalType": "bytes",
-            "name": "args",
-            "type": "bytes"
-          },
-          {
-            "internalType": "uint256",
-            "name": "value",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct GovernanceTypes.Operation[]",
-        "name": "upgradeOps",
-        "type": "tuple[]"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "migrationVersion",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -2873,6 +2139,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "protocolComponentId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -2919,72 +2198,6 @@
     ],
     "name": "ratify",
     "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "components": [
-          {
-            "internalType": "address",
-            "name": "voting",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "votingPower",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "gesRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "classRegistry",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "clock",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "executor",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "l1Bridge",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "council",
-            "type": "address"
-          },
-          {
-            "internalType": "address",
-            "name": "elections",
-            "type": "address"
-          }
-        ],
-        "internalType": "struct GovernanceTypes.ContractSet",
-        "name": "set",
-        "type": "tuple"
-      }
-    ],
-    "name": "registerContractSet",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "contractsHash",
-        "type": "bytes32"
-      }
-    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
