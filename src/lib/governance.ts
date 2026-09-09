@@ -218,7 +218,7 @@ export function normalizeCore(value: any): ProposalCore {
   return {
     id: value.id, proposer: value.proposer, classId: Number(value.classId),
     creationTime: Number(value.creationTime), fStart: Number(value.fStart), voteEnd: Number(value.voteEnd),
-    payloadHash: value.payloadHash, contractsHash: value.contractsHash,
+    payloadHash: value.payloadHash,
     classTimelock: value.classTimelock, retryAllowed: value.retryAllowed, descriptionHash: value.descriptionHash,
   }
 }
@@ -834,7 +834,6 @@ export function errorMessage(error: unknown): string {
     ZeroWeight: 'This account had no voting power at the proposal snapshot.',
     ExcludedAtSnapshot: 'This account was excluded at the proposal snapshot.',
     Frozen: 'Governance is currently frozen.',
-    MigrationInProgress: 'Governance is currently migrating.',
     WrongState: 'The proposal is not in the required state for this action.',
     // Council elections (CON-864 #1): nomination, endorsement and ballots.
     WrongPayment: 'The value sent does not equal the exact nomination cost: bond + registration fee + storage fee for every manifesto byte beyond the first KB.',

@@ -22,7 +22,7 @@ const stringify = (value: unknown) => typeof value === 'bigint' ? value.toString
  * append-only, so the scanned range is remembered.
  */
 export function useElectionParameterHistory() {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const [changes, setChanges] = useState<ElectionParameterChange[]>([])
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState('')
@@ -31,7 +31,7 @@ export function useElectionParameterHistory() {
   const [scanned, setScanned] = useState(false)
 
   const scan = useCallback(async () => {
-    const address = currentSet?.elections
+    const address = book?.elections
     if (!address) return
     setLoading(true); setError(undefined); setPartial(false)
     const abi = GovernanceCouncilElectionsABI as any[]
@@ -70,7 +70,7 @@ export function useElectionParameterHistory() {
       setPartial(seen.size > 0)
       setError(error instanceof Error ? error.message : String(error))
     } finally { setLoading(false); setProgress('') }
-  }, [currentSet])
+  }, [book])
 
   return { changes, loading, progress, error, partial, scanned, scan, eventsKnown: ELECTION_SETTER_EVENTS.length }
 }

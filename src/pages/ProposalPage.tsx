@@ -28,20 +28,22 @@ import { explorerAddress, explorerTx } from '@/lib/rpc'
 import { Button } from '@/components/Button'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TransactionButton } from '@/components/TransactionButton'
-import type { ContractSet, Operation, ProposalSummary } from '@/lib/types'
+import type { GovernanceIdentities, Operation, ProposalSummary } from '@/lib/types'
 
 function parseId(value?: string) {
   try { const id = BigInt(value ?? ''); return id > 0n ? id : undefined } catch { return undefined }
 }
 
-function decodeKnownOperation(operation: Operation, set: ContractSet) {
+/** Name and decode an operation whose target is one of the sealed book's identities (CON-865). */
+function decodeKnownOperation(operation: Operation, book: GovernanceIdentities) {
   const candidates = [
-    [set.voting, 'GovernanceVoting', GovernanceVotingABI], [set.votingPower, 'GovernanceVotingPower', GovernanceVotingPowerABI],
-    [set.classRegistry, 'GovernanceClassRegistry', GovernanceClassRegistryABI], [set.clock, 'GovernanceClock', GovernanceClockABI],
-    [set.gesRegistry, 'GovernanceGESRegistry', GovernanceGESRegistryABI], [set.executor, 'Governance executor', GovernanceABI],
-    [set.l1Bridge, 'GovernanceL1Bridge', GovernanceL1BridgeABI],
+    [book.voting, 'GovernanceVoting', GovernanceVotingABI], [book.votingPower, 'GovernanceVotingPower', GovernanceVotingPowerABI],
+    [book.classRegistry, 'GovernanceClassRegistry', GovernanceClassRegistryABI], [book.clock, 'GovernanceClock', GovernanceClockABI],
+    [book.gesRegistry, 'GovernanceGESRegistry', GovernanceGESRegistryABI], [book.executor, 'Governance executor', GovernanceABI],
+    [book.l1Bridge, 'GovernanceL1Bridge', GovernanceL1BridgeABI],
   ] as const
-  const candidate = candidates.find(([address]) => address.toLowerCase() === operation.target.toLowerCase())
+  // an optional member the deployment never selected is undefined and can match nothing
+  const candidate = candidates.find(([address]) => address?.toLowerCase() === operation.target.toLowerCase())
   if (!candidate) return undefined
   const item = (candidate[2] as any[]).find((entry) => entry.type === 'function' && toFunctionSelector(entry) === operation.selector)
   if (!item) return { contract: candidate[1], signature: `Unknown selector ${operation.selector}`, args: undefined }
@@ -92,7 +94,7 @@ function Lifecycle({ state, creationTime, voteStart, voteEnd, eta, deadline, req
 export function ProposalPage() {
   const { proposalId } = useParams()
   const id = parseId(proposalId)
-  const { voting } = useContracts()
+  const { voting, book } = useContracts()
   const { isConnected, address } = useWallet()
   const { proposal, loading, error, refresh } = useProposal(id)
   // The roles are read from glfVetoSigner()/glfMembers() where the deployment
@@ -160,7 +162,8 @@ export function ProposalPage() {
   const activeHasVoted = selectedIdentity ? selectedIdentity.hasVoted : Boolean(proposal.connectedVote?.hasVoted)
   const route = address ? voteRoute(selectedIdentity ?? { kind: 'eoa', address }, voting, id, support, reason) : undefined
   const canVote = proposal.state === 1 && !activeHasVoted && activeWeight > 0n
-  const hasL1 = proposal.operations.some((operation) => operation.target.toLowerCase() === proposal.contractSet.l1Bridge.toLowerCase())
+  const l1Bridge = book?.l1Bridge?.toLowerCase()
+  const hasL1 = !!l1Bridge && proposal.operations.some((operation) => operation.target.toLowerCase() === l1Bridge)
 
   return <div className="page wide proposal-detail">
     <Link className="back-link" to="/"><ArrowLeft size={16} /> All proposals</Link>
@@ -193,11 +196,11 @@ export function ProposalPage() {
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain description</p><h2>Proposal text</h2></div><span className={descriptionVerified ? 'verified' : 'unverified'}>{descriptionVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div><div className="markdown"><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>{preserveAlignedBlocks(proposal.description)}</ReactMarkdown></div><details><summary>Raw text and hash</summary><pre className="raw-text">{proposal.description}</pre><code className="hash">{proposal.core.descriptionHash}</code></details></section>
 
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">Execution payload</p><h2>{proposal.operations.length ? 'Ordered operations' : 'Signalling RFC'}</h2></div><span className={payloadVerified ? 'verified' : 'unverified'}>{payloadVerified ? <><Check size={14} /> Hash verified</> : <><ShieldAlert size={14} /> Hash mismatch</>}</span></div>
-        {proposal.operations.length === 0 ? <div className="empty inline"><p>This proposal has no executable operations. Its zero payload hash identifies it as an RFC.</p></div> : <div className="operations">{proposal.operations.map((operation, index) => { const decoded = decodeKnownOperation(operation, proposal.contractSet); return <article className="operation" key={`${operation.target}-${index}`}><span className="operation-index">{index + 1}</span><div><p><b>{decoded?.contract ?? shortAddress(operation.target)}</b> · <span className={proposal.operationPermissions[index] ? 'success-text' : 'danger-text'}>{proposal.operationPermissions[index] ? 'Permitted for class' : 'Not currently permitted'}</span></p><a href={explorerAddress(operation.target)} target="_blank" rel="noreferrer">{operation.target}</a><dl>{decoded && <><div><dt>Decoded call</dt><dd><code>{decoded.signature}</code></dd></div>{decoded.args && <div><dt>Decoded arguments</dt><dd><pre>{decoded.args}</pre></dd></div>}</>}<div><dt>Selector</dt><dd><code>{operation.selector}</code></dd></div><div><dt>Native value</dt><dd>{formatGen(operation.value)} GEN</dd></div><div><dt>Raw arguments</dt><dd><code>{operation.args}</code></dd></div><div><dt>Calldata</dt><dd><code>{operation.selector}{operation.args.slice(2)}</code></dd></div></dl></div></article> })}</div>}
+        {proposal.operations.length === 0 ? <div className="empty inline"><p>This proposal has no executable operations. Its zero payload hash identifies it as an RFC.</p></div> : <div className="operations">{proposal.operations.map((operation, index) => { const decoded = book ? decodeKnownOperation(operation, book) : undefined; return <article className="operation" key={`${operation.target}-${index}`}><span className="operation-index">{index + 1}</span><div><p><b>{decoded?.contract ?? shortAddress(operation.target)}</b> · <span className={proposal.operationPermissions[index] ? 'success-text' : 'danger-text'}>{proposal.operationPermissions[index] ? 'Permitted for class' : 'Not currently permitted'}</span></p><a href={explorerAddress(operation.target)} target="_blank" rel="noreferrer">{operation.target}</a><dl>{decoded && <><div><dt>Decoded call</dt><dd><code>{decoded.signature}</code></dd></div>{decoded.args && <div><dt>Decoded arguments</dt><dd><pre>{decoded.args}</pre></dd></div>}</>}<div><dt>Selector</dt><dd><code>{operation.selector}</code></dd></div><div><dt>Native value</dt><dd>{formatGen(operation.value)} GEN</dd></div><div><dt>Raw arguments</dt><dd><code>{operation.args}</code></dd></div><div><dt>Calldata</dt><dd><code>{operation.selector}{operation.args.slice(2)}</code></dd></div></dl></div></article> })}</div>}
         <details><summary>Payload commitment</summary><code className="hash">{proposal.core.payloadHash}</code></details>
       </section>
 
-      <section className="panel"><p className="eyebrow">Lifecycle</p><h2>Proposal timeline</h2><Lifecycle state={proposal.state} creationTime={proposal.core.creationTime} voteStart={proposal.voteStart} voteEnd={proposal.voteEnd} eta={proposal.executionEta} deadline={proposal.executionDeadline} requiresRiskReview={proposal.rules.requiresRiskReview} hasL1={hasL1} rules={proposal.rules} postVote={proposal.postVote} /><div className="contract-pin"><small>Pinned contract set</small><code>{proposal.core.contractsHash}</code><p>Historical voting power, GES, and permissions resolve against this immutable contract set.</p></div></section>
+      <section className="panel"><p className="eyebrow">Lifecycle</p><h2>Proposal timeline</h2><Lifecycle state={proposal.state} creationTime={proposal.core.creationTime} voteStart={proposal.voteStart} voteEnd={proposal.voteEnd} eta={proposal.executionEta} deadline={proposal.executionDeadline} requiresRiskReview={proposal.rules.requiresRiskReview} hasL1={hasL1} rules={proposal.rules} postVote={proposal.postVote} /><div className="contract-pin"><small>Governance identities</small><code>{shortAddress(book?.voting)} · {shortAddress(book?.votingPower)} · {shortAddress(book?.gesRegistry)} · {shortAddress(book?.classRegistry)} · {shortAddress(book?.clock)}</code><p>Voting power, GES, and permissions resolve against the sealed AddressManager. Nothing is pinned per proposal: a sealed book cannot change, so the environment this proposal was created under is the one it settles and executes under.</p></div></section>
 
       <section className="panel"><div className="section-heading"><div><p className="eyebrow">On-chain VoteCast logs</p><h2>Voters</h2></div><span>{voters.records.length} loaded</span></div><div className="tabs">{['all', '1', '0', '2'].map((value) => <button className={voterFilter === value ? 'active' : ''} key={value} onClick={() => setVoterFilter(value)}>{value === 'all' ? 'All' : SUPPORT_NAMES[Number(value)]}</button>)}</div>
         {voters.progress && <p className="scan-progress">{voters.progress}</p>}{voters.error && <div className="error-box">{voters.partial ? 'Partial results shown. ' : ''}{voters.error}<Button variant="secondary" onClick={() => void voters.retry()}>Retry scan</Button></div>}

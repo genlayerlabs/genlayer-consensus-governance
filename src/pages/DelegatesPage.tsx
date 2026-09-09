@@ -31,7 +31,7 @@ const HINTS = {
 function MyDelegation({ onChanged, target, setTarget }: {
   onChanged: () => void; target: string; setTarget: (value: string) => void
 }) {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const { address, isConnected } = useWallet()
   const [actAs, setActAs] = useState<`0x${string}` | ''>('')
   const identities = useVoterIdentities()
@@ -50,7 +50,7 @@ function MyDelegation({ onChanged, target, setTarget }: {
   const blockedPositions = summary.positions.filter((position) => !position.meetsFloor && (position.shares > 0n || position.pending > 0n))
   const canDelegateOut = summary.positions.length > 0 && blockedPositions.length === 0
   const done = () => { void refresh(); void identities.refresh(); onChanged() }
-  const routeTo = (to: `0x${string}`) => identity && currentSet ? delegateRoute(identity, currentSet.votingPower, to) : undefined
+  const routeTo = (to: `0x${string}`) => identity && book ? delegateRoute(identity, book.votingPower, to) : undefined
   const delegateOut = routeTo(target.trim() as `0x${string}`)
   const selfRoute = identity ? routeTo(identity.address) : undefined
   const parkRoute = routeTo(ZERO_ADDRESS)
@@ -86,16 +86,16 @@ function MyDelegation({ onChanged, target, setTarget }: {
     </div>
     <div className="action-buttons">
       <TransactionButton
-        address={delegateOut?.address ?? currentSet?.votingPower} abi={delegateOut ? ABI_BY_KEY[delegateOut.abi] : (GovernanceVotingPowerABI as never)}
+        address={delegateOut?.address ?? book?.votingPower} abi={delegateOut ? ABI_BY_KEY[delegateOut.abi] : (GovernanceVotingPowerABI as never)}
         functionName={delegateOut?.functionName ?? 'delegate'} args={delegateOut?.args ?? [target]}
         disabled={!target.trim() || summary.excluded || !canDelegateOut} onConfirmed={done}
       >Delegate{identity && identity.kind !== 'eoa' ? ` as ${shortAddress(identity.address)}` : ''}</TransactionButton>
       <TransactionButton
-        address={selfRoute?.address ?? currentSet?.votingPower} abi={selfRoute ? ABI_BY_KEY[selfRoute.abi] : (GovernanceVotingPowerABI as never)} variant="secondary"
+        address={selfRoute?.address ?? book?.votingPower} abi={selfRoute ? ABI_BY_KEY[selfRoute.abi] : (GovernanceVotingPowerABI as never)} variant="secondary"
         functionName={selfRoute?.functionName ?? 'delegate'} args={selfRoute?.args ?? [address]} disabled={summary.self || summary.excluded} onConfirmed={done}
       >Self-delegate</TransactionButton>
       <TransactionButton
-        address={parkRoute?.address ?? currentSet?.votingPower} abi={parkRoute ? ABI_BY_KEY[parkRoute.abi] : (GovernanceVotingPowerABI as never)} variant="ghost"
+        address={parkRoute?.address ?? book?.votingPower} abi={parkRoute ? ABI_BY_KEY[parkRoute.abi] : (GovernanceVotingPowerABI as never)} variant="ghost"
         functionName={parkRoute?.functionName ?? 'delegate'} args={parkRoute?.args ?? [ZERO_ADDRESS]} disabled={summary.parked} onConfirmed={done}
       >Park<InfoHint text={HINTS.park} /></TransactionButton>
     </div>
@@ -103,7 +103,7 @@ function MyDelegation({ onChanged, target, setTarget }: {
 }
 
 export function DelegatesPage() {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const directory = useDelegateDirectory()
   const [query, setQuery] = useState('')
   // Excluded addresses can never vote or delegate, so they are noise by
@@ -123,7 +123,7 @@ export function DelegatesPage() {
 
   const total = directory.entries.reduce((sum, entry) => sum + entry.votingPower, 0n)
 
-  if (!currentSet) {
+  if (!book) {
     return <div className="page"><section className="empty"><h1>Select a deployment</h1>
       <p>Set an AddressManager in the header to load its delegation state.</p></section></div>
   }

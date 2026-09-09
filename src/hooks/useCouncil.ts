@@ -14,16 +14,16 @@ import type { CouncilMember, CouncilOverview, FreezeState } from '@/lib/types'
  * requests.
  */
 export function useCouncil() {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const [overview, setOverview] = useState<CouncilOverview>()
   const [freeze, setFreeze] = useState<FreezeState>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
 
   const refresh = useCallback(async () => {
-    if (!currentSet?.council) { setOverview(undefined); setFreeze(undefined); return }
-    const council = currentSet.council
-    const clock = currentSet.clock
+    if (!book?.council) { setOverview(undefined); setFreeze(undefined); return }
+    const council = book.council
+    const clock = book.clock
     setLoading(true); setError(undefined)
     try {
       const read = (address: `0x${string}`, abi: unknown, functionName: string, args: unknown[] = []) =>
@@ -94,7 +94,7 @@ export function useCouncil() {
       }
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
-  }, [currentSet])
+  }, [book])
 
   useEffect(() => { void refresh() }, [refresh])
   return { overview, freeze, loading, error, refresh }

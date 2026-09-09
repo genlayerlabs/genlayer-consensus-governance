@@ -101,6 +101,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidRegistry",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -109,11 +114,6 @@
       }
     ],
     "name": "ManifestoTooLarge",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "MigrationInProgress",
     "type": "error"
   },
   {
@@ -249,6 +249,11 @@
   {
     "inputs": [],
     "name": "RegistrationClosed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RegistryBindingLocked",
     "type": "error"
   },
   {
@@ -689,55 +694,6 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "address",
-        "name": "votingPower",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "gesRegistry",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "clock",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "council",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "voting",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "staking",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "treasury",
-        "type": "address"
-      }
-    ],
-    "name": "PeersUpdated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
         "internalType": "uint48",
         "name": "ratifyGrace",
         "type": "uint48"
@@ -864,6 +820,19 @@
     "name": "acceptOwnership",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "addressManager",
+    "outputs": [
+      {
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1133,7 +1102,7 @@
       },
       {
         "internalType": "uint48",
-        "name": "voting",
+        "name": "votingPeriod",
         "type": "uint48"
       }
     ],
@@ -1443,37 +1412,7 @@
       },
       {
         "internalType": "address",
-        "name": "_votingPower",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_gesRegistry",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_clock",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_council",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_voting",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_staking",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_treasury",
+        "name": "_addressManager",
         "type": "address"
       },
       {
@@ -1531,19 +1470,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "migrationVersion",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "pure",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -1593,37 +1519,37 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "votingPower_",
+        "name": "votingPowerPeer",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "gesRegistry_",
+        "name": "gesRegistryPeer",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "clock_",
+        "name": "clockPeer",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "council_",
+        "name": "councilPeer",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "voting_",
+        "name": "votingPeer",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "staking_",
+        "name": "stakingPeer",
         "type": "address"
       },
       {
         "internalType": "address",
-        "name": "treasury_",
+        "name": "treasuryPeer",
         "type": "address"
       }
     ],
@@ -1641,6 +1567,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "protocolComponentId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -1837,49 +1776,6 @@
       }
     ],
     "name": "setElectionQuorums",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
-        "name": "_votingPower",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_gesRegistry",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_clock",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_council",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_voting",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_staking",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_treasury",
-        "type": "address"
-      }
-    ],
-    "name": "setPeers",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

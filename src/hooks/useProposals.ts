@@ -12,21 +12,20 @@ import { normalizeCore, normalizePostVote, normalizeRules, normalizeVotes, title
 import { readCache, writeCache } from '@/lib/logCache'
 import { isPresent, tryRead } from '@/lib/optionalRead'
 import { findLatestLogBackwards, scanLogs } from '@/lib/rpc'
-import type { ContractSet, ProposalSummary } from '@/lib/types'
+import type { GovernanceIdentities, ProposalSummary } from '@/lib/types'
 
 const PROBE_BATCH = 8
 /** A guard, not a limit: stops a runaway loop if state() ever stops reverting. */
 const MAX_PROPOSALS = 512
 
-function normalizeSet(value: any): ContractSet {
-  return {
-    voting: value.voting, votingPower: value.votingPower, gesRegistry: value.gesRegistry,
-    classRegistry: value.classRegistry, clock: value.clock, executor: value.executor,
-    l1Bridge: value.l1Bridge, council: value.council, elections: value.elections,
-  }
-}
-
-export async function fetchProposal(voting: Address, id: bigint, account?: Address, creationLog?: any): Promise<ProposalSummary> {
+/**
+ * Read one proposal. `book` is the sealed AddressManager's nine identities
+ * (CON-865): a proposal pins nothing, because the environment it was created
+ * under cannot move, so its GES, voting power and permissions are read from
+ * the same contracts every other proposal uses.
+ */
+export async function fetchProposal(book: GovernanceIdentities, id: bigint, account?: Address, creationLog?: any): Promise<ProposalSummary> {
+  const voting = book.voting
   if (!creationLog) {
     // A proposal's creation log is immutable and one-per-id, so it is worth
     // remembering permanently: the voters scan also resumes from this block,
@@ -55,20 +54,18 @@ export async function fetchProposal(voting: Address, id: bigint, account?: Addre
     publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName, args } as any),
   ))
   const core = normalizeCore(coreValue)
-  const setValue = await publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'contractSet', args: [core.contractsHash] } as any)
-  const set = normalizeSet(setValue)
   // clock() is on GovernanceVotingPower, not GovernanceClock — see the note
-  // in useAccountSummary. Reading it from set.clock reverts.
+  // in useAccountSummary. Reading it from book.clock reverts.
   // BigInt(): uint48 decodes to a number in viem — see useAccountSummary.
-  const clock = BigInt(await publicClient.readContract({ address: set.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint | number)
+  const clock = BigInt(await publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint | number)
   const effectiveSnapshot = (voteStart as bigint) >= clock ? clock - 1n : voteStart as bigint
-  const ges = await publicClient.readContract({ address: set.gesRegistry, abi: GovernanceGESRegistryABI, functionName: 'getPastGES', args: [effectiveSnapshot] } as any) as bigint
-  const operationPermissions = await Promise.all((operations as any[]).map((operation) => publicClient.readContract({ address: set.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'isPermittedFor', args: [core.classId, operation, id] } as any) as Promise<boolean>))
+  const ges = await publicClient.readContract({ address: book.gesRegistry, abi: GovernanceGESRegistryABI, functionName: 'getPastGES', args: [effectiveSnapshot] } as any) as bigint
+  const operationPermissions = await Promise.all((operations as any[]).map((operation) => publicClient.readContract({ address: book.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'isPermittedFor', args: [core.classId, operation, id] } as any) as Promise<boolean>))
   let connectedVote
   if (account) {
     const [hasVoted, weight] = await Promise.all([
       publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'hasVoted', args: [id, account] } as any) as Promise<boolean>,
-      publicClient.readContract({ address: set.votingPower, abi: GovernanceVotingPowerABI, functionName: 'getPastVotesForGovernance', args: [account, effectiveSnapshot] } as any) as Promise<bigint>,
+      publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'getPastVotesForGovernance', args: [account, effectiveSnapshot] } as any) as Promise<bigint>,
     ])
     let support: number | undefined
     if (hasVoted) {
@@ -83,7 +80,7 @@ export async function fetchProposal(voting: Address, id: bigint, account?: Addre
     core, state: Number(state), description: description as string,
     title: titleFromDescription(description as string, id), voteStart: voteStart as bigint,
     voteEnd: voteEnd as bigint, votes: normalizeVotes(votes), rules: normalizeRules(rules),
-    operations: operations as any, operationPermissions, ges, contractSet: set, connectedVote,
+    operations: operations as any, operationPermissions, ges, connectedVote,
     // executionEta / executionDeadline are uint48 -> number in viem
     postVote: normalizePostVote(postVote), executionEta: BigInt(executionEta as bigint | number), executionDeadline: BigInt(executionDeadline as bigint | number),
     transactionHash: creationLog?.transactionHash, blockNumber: creationLog?.blockNumber,
@@ -113,7 +110,8 @@ function rememberIndex(voting: Address, added: ProposalSummary[], toBlock?: bigi
 }
 
 export function useProposals() {
-  const { voting } = useContracts()
+  const { book } = useContracts()
+  const voting = book?.voting
   const { address } = useWallet()
   const [proposals, setProposals] = useState<ProposalSummary[]>([])
   const [loading, setLoading] = useState(false)
@@ -159,12 +157,12 @@ export function useProposals() {
         if (ids.length > MAX_PROPOSALS) break
       }
       setProgress(ids.length ? `Loading ${ids.length} proposal${ids.length === 1 ? '' : 's'}…` : '')
-      const hydrated = await Promise.all(ids.map((id) => fetchProposal(voting, id, address)))
+      const hydrated = await Promise.all(ids.map((id) => fetchProposal(book!, id, address)))
       setProposals(hydrated.sort((a, b) => (a.core.id === b.core.id ? 0 : a.core.id > b.core.id ? -1 : 1)))
       rememberIndex(voting, hydrated)
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false); setProgress('') }
-  }, [voting, address])
+  }, [book, voting, address])
 
   // Render whatever a previous visit indexed, so the list is not blank while
   // the ids are probed. Identity only — every number on the row is re-read.
@@ -173,10 +171,10 @@ export function useProposals() {
     const index = readCache<any>('proposal-index', voting, 'all', (raw) => ({ ...raw, id: BigInt(raw.id), blockNumber: BigInt(raw.blockNumber) }))
     if (!index || index.records.length === 0) return
     try {
-      const hydrated = await Promise.all(index.records.map((entry: any) => fetchProposal(voting, entry.id, address, entry)))
+      const hydrated = await Promise.all(index.records.map((entry: any) => fetchProposal(book!, entry.id, address, entry)))
       setProposals((current) => (current.length ? current : hydrated.sort((a, b) => (a.core.id === b.core.id ? 0 : a.core.id > b.core.id ? -1 : 1))))
     } catch { /* the authoritative load below replaces this anyway */ }
-  }, [voting, address])
+  }, [book, voting, address])
 
   useEffect(() => { void loadIndexed().then(() => load()) }, [loadIndexed, load])
 

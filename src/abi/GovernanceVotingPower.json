@@ -144,6 +144,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "InvalidRegistry",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint48",
@@ -235,6 +240,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "RegistryBindingLocked",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -255,30 +265,6 @@
     ],
     "name": "TooManySpamExposureSources",
     "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ZeroClock",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "previousClock",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "newClock",
-        "type": "address"
-      }
-    ],
-    "name": "ClockUpdated",
-    "type": "event"
   },
   {
     "anonymous": false,
@@ -764,6 +750,19 @@
   },
   {
     "inputs": [],
+    "name": "addressManager",
+    "outputs": [
+      {
+        "internalType": "contract IAddressManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "beginFailClosedRecovery",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -1120,12 +1119,7 @@
       },
       {
         "internalType": "address",
-        "name": "_stakingRouter",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_clock",
+        "name": "_addressManager",
         "type": "address"
       },
       {
@@ -1227,19 +1221,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "migrationVersion",
-    "outputs": [
-      {
-        "internalType": "uint64",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -1418,6 +1399,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "protocolComponentId",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -1545,19 +1539,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "newClock",
-        "type": "address"
-      }
-    ],
-    "name": "setClock",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "delegatee",
         "type": "address"
       },
@@ -1594,32 +1575,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_gesRegistry",
-        "type": "address"
-      }
-    ],
-    "name": "setGesRegistry",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address[]",
-        "name": "consumers",
-        "type": "address[]"
-      }
-    ],
-    "name": "setWatermarkConsumers",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "address",
         "name": "account",
         "type": "address"
       },
@@ -1640,6 +1595,19 @@
         "internalType": "uint256",
         "name": "pendingGEN",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "stakingRouter",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -1695,7 +1663,7 @@
     "outputs": [
       {
         "internalType": "address[]",
-        "name": "",
+        "name": "consumers",
         "type": "address[]"
       }
     ],
