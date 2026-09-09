@@ -418,6 +418,20 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .modal h2 { margin: 0 0 8px; }
 .modal label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; margin-top: 22px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.modal.wide { width: min(760px, 100%); }
+.sealed-identities { margin-top: 18px; }
+.sealed-identities .seal-status { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; font-size: 12px; }
+.sealed-identities .seal-status.sealed { color: var(--green); }
+.sealed-identities .seal-status.open { color: #e0b252; }
+.sealed-identities .seal-status.unknown { color: var(--muted); }
+.sealed-identities .seal-commitment { display: flex; flex-direction: column; gap: 3px; margin: 0 0 10px; }
+.sealed-identities .seal-commitment small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; }
+.sealed-identities .seal-commitment code { font-size: 10px; color: #9cb0aa; word-break: break-all; }
+.sealed-identities table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sealed-identities th { text-align: left; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .07em; padding: 4px 6px; }
+.sealed-identities td { padding: 5px 6px; border-top: 1px solid #22302c; vertical-align: top; }
+.sealed-identities td code { font-size: 11px; }
+.sealed-identities td small { color: var(--muted); }
 
 @media (max-width: 1060px) {
   .header { grid-template-columns: auto 1fr; }

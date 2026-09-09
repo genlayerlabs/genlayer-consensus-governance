@@ -4,7 +4,7 @@ Frontend-only, on-chain-only proof of concept for GenLayer governance. The appli
 
 > This is a learning and contract-integration POC, not the production governance portal. It has no availability SLA or formal frontend security audit. Verify addresses, decoded calldata, hashes, and wallet prompts before signing.
 
-Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlabs.github.io/genlayer-consensus-governance/) — defaults to `deployment_gov3` on the GenLayer testnet.
+Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlabs.github.io/genlayer-consensus-governance/) — defaults to `deployment_gov3` on the GenLayer testnet. Since the CON-865 cut the app expects a deployment whose AddressManager names the nine governance identities by key (below); `deployment_gov3` predates that model and needs a fresh, sealed bootstrap before this build can read it.
 
 ## Phase 1 — proposals ([CON-861](https://linear.app/genlayer-labs/issue/CON-861))
 
@@ -12,7 +12,7 @@ Live: [genlayerlabs.github.io/genlayer-consensus-governance](https://genlayerlab
 - Search, filter and sort proposals; a previous visit's index paints the list immediately while ids are re-read.
 - Inspect the complete on-chain description and ordered operation payload, with local commitment verification.
 - Understand For, Against, Abstain, snapshot GES, quorum, For floor, and exact rational approval independently.
-- Inspect lifecycle, veto/Risk Review influence, pinned `contractsHash`, timelock, execution window, and retry state.
+- Inspect lifecycle, veto/Risk Review influence, timelock, execution window, and retry state.
 - Scan `VoteCast` logs in bounded, adaptive RPC ranges; filter voters and retain partial results after RPC errors.
 - Connect an injected wallet, view snapshot voting power, vote with an optional on-chain reason, settle, execute/retry, and expire.
 - Vote as the connected account, **through a validator wallet you own, or through your Vesting contract** — identities that cannot vote are listed and disabled with the reason rather than hidden. The same picker delegates and casts election ballots.
@@ -48,6 +48,24 @@ Things the UI could not do because the value it needs was not readable and canno
 | Historical election parameters | Seven setters emitted no events, so past values were unrecoverable | events on the setters, plus `electionPeriods()`, `electionQuorums()`, `termLength()` | parameters panel with a change history scanned on demand |
 | Vote stake held in a Vesting contract | Not a contract gap — the passthroughs and `VestingFactory.getVesting` exist. `VestingFactory` is simply not registered in gov3's AddressManager | register it (carried by the upgrade proposal) | the vesting appears in "Vote as", "Delegate as" and "Ballot as" where the factory is registered; validator wallets the vesting owns are listed disabled, since Vesting has no passthrough for their votes |
 
+### Sealed identities ([genlayer-consensus#1572](https://github.com/genlayerlabs/genlayer-consensus/pull/1572), CON-865)
+
+The `ContractSet` lookup API — `registerContractSet`, `activateContractSet`, `contractSet(hash)`, `currentContractsHash`, `migrationInProgress` and the migration coordinator — is gone. The nine governance identities are keys of a sealed `AddressManager` instead, and the UI resolves them the way the contracts do, one `getAddress(key)` each (`src/lib/sealedIdentities.ts`):
+
+| Key | Role | Required |
+| --- | --- | --- |
+| `Governance` | executor | yes |
+| `GovernanceVoting` | proposals and votes | yes |
+| `GovernanceVotingPower` | voting-power ledger | yes |
+| `GovernanceGESRegistry` | GES registry | yes |
+| `GovernanceClassRegistry` | class rules and permissions | yes |
+| `GovernanceClock` | freezes and maintenance | yes |
+| `SecurityCouncil` | council | optional |
+| `GovernanceCouncilElections` | elections | optional |
+| `GovernanceL1Bridge` | L1 bridge | optional |
+
+A zero answer for an optional key means the deployment never selected that member — the council, elections and L1 views say so rather than reading a zero address. A zero for a required key is refused with the missing keys named. The AddressManager dialog lists the nine keys with their resolved addresses and, where the book exposes `isSealed()` / `manifestCommitment()`, whether it is sealed; the migration banner, the "no migration" submission criterion and the per-proposal "pinned contract set" are gone with the API. Nothing is pinned per proposal any more: a sealed book cannot change, so the environment a proposal was created under is the one it settles and executes under.
+
 ## Architecture and trust model
 
 There is no backend, server runtime, database, hosted indexer, IPFS dependency, analytics service, or off-chain governance workflow.
@@ -58,7 +76,7 @@ Browser ── eth_call / eth_getLogs ──> configured RPC ──> governance 
    └──── injected wallet transactions ───────────────> configured chain
 ```
 
-The AddressManager is the only deployment entry point. The app resolves `GovernanceVoting` (or, on a registry sealed under CON-833 whose manifest omits that key, the owner of the manifest-listed `Governance` executor, cross-checked against the active set's executor), obtains its current `contractsHash`, and verifies the active nine-address `ContractSet`. Each proposal's historical GES, voting power, and permission context is then resolved from its pinned set. Vendored ABIs make the static build deterministic; their source is recorded in [`src/abi/provenance.json`](src/abi/provenance.json).
+The AddressManager is the only deployment entry point. The app resolves the nine governance identities from it by key (see *Sealed identities* above) and every read and write goes to those addresses; a proposal's GES, voting power and permission context come from the same contracts, because on a sealed book there is nothing else they could come from. Vendored ABIs make the static build deterministic; their source is recorded in [`src/abi/provenance.json`](src/abi/provenance.json).
 
 Views added after a deployment shipped are feature-detected (`src/lib/optionalRead.ts`): the view is tried first; a revert selects the log or probe fallback the UI has always had; a transport error keeps the fallback and is reported as "could not read", never as "not available on this deployment".
 
@@ -110,7 +128,7 @@ The Vite base path is `/genlayer-consensus-governance/`, routing uses URL hashes
 
 - Council actions are rebuilt from logs within a scanned range where `actionCount()` is absent, and election candidates where `candidatesOf` is absent or empty. Completeness cannot be proven on that path, and the page says so — see Phase 3. Even with the index, an action's creator comes only from its `CouncilActionCreated` log.
 - Known ABI decoding is limited to signatures entered by the proposer. Stored operations always retain a raw selector, arguments, value, calldata, and verified payload commitment.
-- Creation-time staking epoch validation is authoritative only in the `propose` preflight, because the pinned governance `ContractSet` does not include the staking router.
+- Creation-time staking epoch validation is authoritative only in the `propose` preflight; the UI reads the staking router from the AddressManager's `Staking` key for the delegate directory only.
 - L1 bridge progress is represented in the proposal lifecycle, but a deployed bridge/executor and its live events are required for transaction-specific L1 status.
 - The delegate directory is the union of joined validators and their delegators — a superset of everyone who can hold voting power, but it truncates at the paged-read ceiling and says so when it does.
 - Reorganizations are handled by confirmed receipt waits and explicit refresh; cached logs carry a reorg margin below the head.
@@ -120,4 +138,4 @@ The Vite base path is `/genlayer-consensus-governance/`, routing uses URL hashes
 
 ## Contract source
 
-The initial ABI cut is `genlayerlabs/genlayer-consensus` PR #1553 at commit `c592217870ea964b9fd7511253f8c498df9fae52`. The CON-864 cut (PR #1563, commit `1351ca344990baef677e081e68e6050e4fb0330c`) adds views and events only. Refresh the vendored ABIs and provenance together whenever the contract dependency cut changes.
+The initial ABI cut is `genlayerlabs/genlayer-consensus` PR #1553 at commit `c592217870ea964b9fd7511253f8c498df9fae52`. The CON-864 cut (PR #1563, commit `1351ca344990baef677e081e68e6050e4fb0330c`) adds views and events only. The CON-865 cut (PR #1572, commit `e9dc6029ca84ae3578db709d1b4b02eb189c564d`) removes the `ContractSet` API and adds `addressManager()` / `protocolComponentId()` on every governance contract and the seal views on `AddressManager`; the ten governance/AddressManager ABIs are from that commit. Refresh the vendored ABIs and provenance together whenever the contract dependency cut changes.
