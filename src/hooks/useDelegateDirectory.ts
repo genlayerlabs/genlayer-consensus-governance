@@ -31,7 +31,7 @@ const MAX_DELEGATOR_PAGES = 10
  * re-derive what this reads directly.
  */
 export function useDelegateDirectory() {
-  const { currentSet, addressManager } = useContracts()
+  const { book, addressManager } = useContracts()
   const [entries, setEntries] = useState<DelegateEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -39,7 +39,7 @@ export function useDelegateDirectory() {
   const [truncated, setTruncated] = useState(false)
 
   const refresh = useCallback(async () => {
-    if (!currentSet || !addressManager) { setEntries([]); return }
+    if (!book || !addressManager) { setEntries([]); return }
     setLoading(true); setError(undefined); setTruncated(false)
     try {
       const staking = await publicClient.readContract({
@@ -81,12 +81,12 @@ export function useDelegateDirectory() {
       const addresses = [...universe] as Address[]
       const rows = await Promise.all(addresses.map(async (address) => {
         const [votingPower, delegate, excluded, controller, isCouncilMember] = await Promise.all([
-          publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'getVotes', args: [address] } as never) as Promise<bigint>,
-          publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'delegates', args: [address] } as never) as Promise<Address>,
-          publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'isExcluded', args: [address] } as never) as Promise<boolean>,
-          publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'governanceControllerOf', args: [address] } as never).catch(() => ZERO_ADDRESS) as Promise<Address>,
-          currentSet.council
-            ? publicClient.readContract({ address: currentSet.council, abi: SecurityCouncilABI, functionName: 'isMember', args: [address] } as never).catch(() => false) as Promise<boolean>
+          publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'getVotes', args: [address] } as never) as Promise<bigint>,
+          publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'delegates', args: [address] } as never) as Promise<Address>,
+          publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'isExcluded', args: [address] } as never) as Promise<boolean>,
+          publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'governanceControllerOf', args: [address] } as never).catch(() => ZERO_ADDRESS) as Promise<Address>,
+          book.council
+            ? publicClient.readContract({ address: book.council, abi: SecurityCouncilABI, functionName: 'isMember', args: [address] } as never).catch(() => false) as Promise<boolean>
             : Promise.resolve(false),
         ])
         return { address, votingPower, delegate, excluded, controller, isCouncilMember }
@@ -115,7 +115,7 @@ export function useDelegateDirectory() {
       setEntries(directory)
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false); setProgress('') }
-  }, [currentSet, addressManager])
+  }, [book, addressManager])
 
   useEffect(() => { void refresh() }, [refresh])
   return { entries, loading, error, progress, truncated, refresh }

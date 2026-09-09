@@ -55,23 +55,23 @@ const MAX_PAGES = 25
 export function useVoterIdentities(options: { proposalId?: bigint; electionId?: bigint; snapshot?: bigint } = {}) {
   const { proposalId, electionId, snapshot } = options
   const { address } = useWallet()
-  const { addressManager, voting, vestingFactory, currentSet } = useContracts()
+  const { addressManager, voting, vestingFactory, book } = useContracts()
   const [identities, setIdentities] = useState<IdentityState[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
 
   const refresh = useCallback(async () => {
-    if (!address || !addressManager || !voting || !currentSet) { setIdentities([]); return }
+    if (!address || !addressManager || !voting || !book) { setIdentities([]); return }
     setLoading(true); setError(undefined)
     try {
-      const votingPower = currentSet.votingPower
+      const votingPower = book.votingPower
       const weightOf = (account: Address) => (snapshot === undefined
         ? publicClient.readContract({ address: votingPower, abi: GovernanceVotingPowerABI, functionName: 'getVotes', args: [account] } as never)
         : publicClient.readContract({ address: votingPower, abi: GovernanceVotingPowerABI, functionName: 'getPastVotesForGovernance', args: [account, snapshot] } as never)) as Promise<bigint>
       const votedOf = (account: Address) => proposalId !== undefined
         ? publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'hasVoted', args: [proposalId, account] } as never) as Promise<boolean>
-        : electionId !== undefined && currentSet.elections
-          ? publicClient.readContract({ address: currentSet.elections, abi: GovernanceCouncilElectionsABI, functionName: 'hasBalloted', args: [electionId, account] } as never) as Promise<boolean>
+        : electionId !== undefined && book.elections
+          ? publicClient.readContract({ address: book.elections, abi: GovernanceCouncilElectionsABI, functionName: 'hasBalloted', args: [electionId, account] } as never) as Promise<boolean>
           : Promise.resolve(false)
       const delegateOf = (account: Address) => publicClient.readContract({ address: votingPower, abi: GovernanceVotingPowerABI, functionName: 'delegates', args: [account] } as never) as Promise<Address>
       const detail = async (identity: VoterIdentity, unreachable?: string): Promise<IdentityState> => {
@@ -131,7 +131,7 @@ export function useVoterIdentities(options: { proposalId?: bigint; electionId?: 
       setIdentities(await Promise.all(rows))
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
-  }, [address, addressManager, voting, vestingFactory, currentSet, proposalId, electionId, snapshot])
+  }, [address, addressManager, voting, vestingFactory, book, proposalId, electionId, snapshot])
 
   useEffect(() => { void refresh() }, [refresh])
   return { identities, loading, error, refresh, vestingSupported: Boolean(vestingFactory) }

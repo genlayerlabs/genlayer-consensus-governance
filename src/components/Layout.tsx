@@ -7,7 +7,7 @@ import { AccountSummary } from './AccountSummary'
 import { deploymentConfig } from '@/config/chain'
 
 export function Layout() {
-  const { stopState, migrationActive, loading, error } = useContracts()
+  const { stopState, loading, error } = useContracts()
   return <div className="app-shell">
     <header className="header">
       <NavLink to="/" className="brand"><span className="brand-mark"><Hexagon size={22} /></span><span>GenLayer <b>Governance</b><small>POC</small></span></NavLink>
@@ -16,8 +16,8 @@ export function Layout() {
     </header>
     {loading && <div className="global-banner">Resolving governance contracts…</div>}
     {error && <div className="global-banner danger">Deployment error: {error}</div>}
-    {(stopState?.freezeActive || stopState?.maintenanceActive || migrationActive) && <div className="global-banner warning">
-      {stopState?.maintenanceActive ? 'Governance maintenance is active.' : stopState?.freezeActive ? `Governance is frozen${stopState.freezeEnd ? ` until ${new Date(stopState.freezeEnd * 1000).toLocaleString()}` : ''}.` : 'Governance migration is active.'} Deadlines and writes may be paused.
+    {(stopState?.freezeActive || stopState?.maintenanceActive) && <div className="global-banner warning">
+      {stopState.maintenanceActive ? 'Governance maintenance is active.' : `Governance is frozen${stopState.freezeEnd ? ` until ${new Date(stopState.freezeEnd * 1000).toLocaleString()}` : ''}.`} Deadlines and writes may be paused.
     </div>}
     <AccountSummary />
     <main><Outlet /></main>

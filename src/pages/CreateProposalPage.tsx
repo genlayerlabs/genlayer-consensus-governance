@@ -50,10 +50,10 @@ export function CreateProposalPage() {
   const [transactionHash, setTransactionHash] = useState<Hex>()
 
   useEffect(() => {
-    if (!contracts.currentSet || !contracts.voting) return
+    if (!contracts.book || !contracts.voting) return
     let cancelled = false
     void Promise.all([
-      ...Array.from({ length: 6 }, (_, id) => publicClient.readContract({ address: contracts.currentSet!.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'classParams', args: [id] } as any)),
+      ...Array.from({ length: 6 }, (_, id) => publicClient.readContract({ address: contracts.book!.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'classParams', args: [id] } as any)),
       publicClient.readContract({ address: contracts.voting!, abi: GovernanceVotingABI, functionName: 'sizeLimits' } as any),
     ]).then((values) => {
       if (cancelled) return
@@ -64,7 +64,7 @@ export function CreateProposalPage() {
       setLimits({ description: Number(size[0]), operations: Number(size[1]), operationArgs: Number(size[2]), payload: Number(size[3]) })
     }).catch((error) => setPreflightError(errorMessage(error)))
     return () => { cancelled = true }
-  }, [contracts.currentSet, contracts.voting])
+  }, [contracts.book, contracts.voting])
 
   useEffect(() => {
     const selected = classes[classId]
@@ -84,27 +84,29 @@ export function CreateProposalPage() {
   const summary = account.summary
   const cooldown = summary && summary.directCooldownUntil > summary.delegateCooldownUntil ? summary.directCooldownUntil : summary?.delegateCooldownUntil ?? 0n
   const argsBytes = operations.reduce((sum, operation) => sum + operationBytes(operation), 0)
-  const l1Operations = operations.filter((operation) => operation.target.toLowerCase() === contracts.currentSet?.l1Bridge.toLowerCase()).length
+  // the L1 bridge is an optional member of the book: with none registered, no operation can be an L1 call
+  const l1Bridge = contracts.book?.l1Bridge?.toLowerCase()
+  const l1Operations = l1Bridge ? operations.filter((operation) => operation.target.toLowerCase() === l1Bridge).length : 0
   const sizesValid = byteLength(description) <= limits.description && drafts.length <= limits.operations && operations.every((operation) => operationBytes(operation) <= limits.operationArgs) && argsBytes <= limits.payload
   const operationsValid = operations.length === drafts.length && permissions.length === operations.length && permissions.every(Boolean) && l1Operations <= 1
   const timelockValue = /^\d+$/.test(timelock) ? BigInt(timelock) : -1n
   const timelockValid = !!selectedClass && timelockValue >= selectedClass.timelockMin && timelockValue <= selectedClass.timelockMax
   const walletReady = isConnected && chainId === genlayerTestnet.id
-  const governanceReady = !!contracts.voting && !!contracts.currentSet && !contracts.stopState?.freezeActive && !contracts.stopState?.maintenanceActive && !contracts.migrationActive
+  const governanceReady = !!contracts.voting && !!contracts.book && !contracts.stopState?.freezeActive && !contracts.stopState?.maintenanceActive
   const accountReady = !!summary && summary.votingPower >= summary.requiredPower && summary.liveProposals < 2n && cooldown <= now && (balance ?? 0n) >= summary.bond
   const formReady = description.trim().length > 1 && !!selectedClass && timelockValid && sizesValid && operationsValid
 
   useEffect(() => { setPreflight('idle'); setPreflightError('') }, [formFingerprint])
 
   useEffect(() => {
-    if (!contracts.currentSet || operations.length !== drafts.length) { setPermissions([]); return }
+    if (!contracts.book || operations.length !== drafts.length) { setPermissions([]); return }
     let cancelled = false
     setPermissions([])
-    void Promise.all(operations.map((operation) => publicClient.readContract({ address: contracts.currentSet!.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'isPermitted', args: [classId, operation] } as any) as Promise<boolean>))
+    void Promise.all(operations.map((operation) => publicClient.readContract({ address: contracts.book!.classRegistry, abi: GovernanceClassRegistryABI, functionName: 'isPermitted', args: [classId, operation] } as any) as Promise<boolean>))
       .then((values) => { if (!cancelled) setPermissions(values) })
       .catch(() => { if (!cancelled) setPermissions(operations.map(() => false)) })
     return () => { cancelled = true }
-  }, [contracts.currentSet, classId, drafts.length, operations])
+  }, [contracts.book, classId, drafts.length, operations])
 
   const updateDraft = (index: number, patch: Partial<DraftOperation>) => setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item))
   const moveDraft = (index: number, direction: -1 | 1) => setDrafts((current) => { const next = [...current]; const target = index + direction; if (target < 0 || target >= next.length) return current; [next[index], next[target]] = [next[target], next[index]]; return next })
@@ -121,7 +123,7 @@ export function CreateProposalPage() {
     // informative — the state an operation depends on can change before
     // execution — but a payload that already reverts, or one large enough to
     // outgrow a wallet's estimate, is worth knowing about before the bond.
-    const executor = contracts.currentSet?.executor
+    const executor = contracts.book?.executor
     if (!executor || operations.length === 0) { setExecutionGas(undefined); return }
     const perOperation = await Promise.all(operations.map(async (operation) => {
       try {
@@ -165,7 +167,7 @@ export function CreateProposalPage() {
       <section className="panel"><p className="eyebrow">4 · Execution settings</p><h2>Timelock and retry policy</h2><div className="form-grid"><label>Class timelock (seconds)<input value={timelock} onChange={(event) => { setTimelock(event.target.value); setPreflight('idle') }} inputMode="numeric" /><small>{selectedClass && `${formatDuration(selectedClass.timelockMin)} minimum · ${formatDuration(selectedClass.timelockMax)} maximum`}</small></label><label className="checkbox"><input type="checkbox" checked={retryAllowed} onChange={(event) => { setRetryAllowed(event.target.checked); setPreflight('idle') }} /><span><b>Allow execution retry</b><small>Keep the proposal queued after a failed execution attempt.</small></span></label></div></section>
     </div>
 
-    <aside className="builder-aside"><section className="panel sticky"><p className="eyebrow">Submission readiness</p><h2>On-chain criteria</h2><ul className="criteria"><Criterion met={walletReady}>{walletReady ? `Wallet ${shortAddress(address)}` : 'Connect wallet on the configured network'}</Criterion><Criterion met={governanceReady}>Governance active; no freeze, maintenance, or migration</Criterion><Criterion met={!!summary && summary.ges > 0n} pending={account.loading}>Epoch/GES initialized (final epoch check occurs in eth_call)</Criterion><Criterion met={!!summary && summary.votingPower >= summary.requiredPower} pending={account.loading}>{summary ? `${formatGen(summary.votingPower)} / ${formatGen(summary.requiredPower)} GEN proposal power` : 'At least 1% of GES voting power'}</Criterion><Criterion met={!!summary && (balance ?? 0n) >= summary.bond} pending={balance === undefined}>{summary ? `${formatGen(summary.bond)} GEN exact bond available` : 'Exact 0.1% GES bond available'}</Criterion><Criterion met={!!summary && summary.liveProposals < 2n}>{summary ? `${summary.liveProposals} of 2 live proposals` : 'Fewer than two live proposals'}</Criterion><Criterion met={cooldown <= now}>No direct or delegate proposal-spam cooldown</Criterion><Criterion met={!!selectedClass}>Selected class exists and is votable</Criterion><Criterion met={timelockValid}>Timelock is within class range</Criterion><Criterion met={sizesValid}>Description and payload size limits</Criterion><Criterion met={operationsValid}>{drafts.length ? 'Every operation permitted; at most one L1 bridge call' : 'RFC has an empty payload'}</Criterion></ul>
+    <aside className="builder-aside"><section className="panel sticky"><p className="eyebrow">Submission readiness</p><h2>On-chain criteria</h2><ul className="criteria"><Criterion met={walletReady}>{walletReady ? `Wallet ${shortAddress(address)}` : 'Connect wallet on the configured network'}</Criterion><Criterion met={governanceReady}>Governance active; no freeze or maintenance</Criterion><Criterion met={!!summary && summary.ges > 0n} pending={account.loading}>Epoch/GES initialized (final epoch check occurs in eth_call)</Criterion><Criterion met={!!summary && summary.votingPower >= summary.requiredPower} pending={account.loading}>{summary ? `${formatGen(summary.votingPower)} / ${formatGen(summary.requiredPower)} GEN proposal power` : 'At least 1% of GES voting power'}</Criterion><Criterion met={!!summary && (balance ?? 0n) >= summary.bond} pending={balance === undefined}>{summary ? `${formatGen(summary.bond)} GEN exact bond available` : 'Exact 0.1% GES bond available'}</Criterion><Criterion met={!!summary && summary.liveProposals < 2n}>{summary ? `${summary.liveProposals} of 2 live proposals` : 'Fewer than two live proposals'}</Criterion><Criterion met={cooldown <= now}>No direct or delegate proposal-spam cooldown</Criterion><Criterion met={!!selectedClass}>Selected class exists and is votable</Criterion><Criterion met={timelockValid}>Timelock is within class range</Criterion><Criterion met={sizesValid}>Description and payload size limits</Criterion><Criterion met={operationsValid}>{drafts.length ? 'Every operation permitted; at most one L1 bridge call' : 'RFC has an empty payload'}</Criterion></ul>
         <div className="preflight"><Button variant="secondary" onClick={() => void runPreflight()} disabled={!walletReady || !governanceReady || !accountReady || !formReady || preflight === 'checking'}>{preflight === 'checking' ? <><LoaderCircle className="spin" size={16} /> Simulating…</> : 'Run on-chain preflight'}</Button>{preflight === 'ready' && <p className="success-text"><Check size={15} /> eth_call succeeded at the current head.</p>}{preflightError && <div className="error-box compact">{preflightError}</div>}{preflight === 'ready' && executionGas && <div className={executionGas.perOperation.some((entry) => entry.error) ? 'error-box compact' : 'hint'}>
           Execution cost, measured from the executor now: about {Number(executionGas.total).toLocaleString()} gas for the operations{executionGas.total > 2_000_000n ? ' — large; the Execute button sends with headroom, but a wallet-estimated execute would fall short' : ''}.
           {executionGas.perOperation.map((entry, index) => entry.error ? <span key={index}><br />Operation {index + 1} would revert if executed now: {entry.error}. The state it needs may only exist after the vote; if not, the proposal will execute as failed.</span> : null)}

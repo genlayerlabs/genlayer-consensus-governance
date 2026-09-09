@@ -254,7 +254,7 @@ function ActionRow({ action, council, isMember, thresholds, membershipVersion, p
 }
 
 export function CouncilPage() {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const { address } = useWallet()
   const { overview, freeze, loading, error, refresh } = useCouncil()
   const actions = useCouncilActions()
@@ -267,7 +267,7 @@ export function CouncilPage() {
     [address, overview],
   )
 
-  if (!currentSet?.council) {
+  if (!book?.council) {
     return <div className="page"><section className="empty"><h1>Select a deployment</h1>
       <p>Set an AddressManager in the header to load its Security Council.</p></section></div>
   }
@@ -337,13 +337,13 @@ export function CouncilPage() {
                 nowhere else on the page: without the button an elected
                 member could only sit and wait to be expired. */}
             {member.status === 0 && address && member.address.toLowerCase() === address.toLowerCase() && <TransactionButton
-              address={currentSet.council} abi={SecurityCouncilABI as never} functionName="activateSeat" args={[]} variant="ghost"
+              address={book.council} abi={SecurityCouncilABI as never} functionName="activateSeat" args={[]} variant="ghost"
               onConfirmed={() => void refresh()}>Activate seat</TransactionButton>}
           </article>
         })}</div>
       </section>
 
-      <ActionComposer council={currentSet.council} classRegistry={currentSet.classRegistry} isMember={isMember} onDone={() => void actions.refresh()}
+      <ActionComposer council={book.council} classRegistry={book.classRegistry} isMember={isMember} onDone={() => void actions.refresh()}
         proposals={proposals} proposalsLoading={proposalsLoading} />
       </div>
 
@@ -357,7 +357,7 @@ export function CouncilPage() {
         {actions.progress && <p className="scan-progress">{actions.progress}</p>}
         {actions.error && <div className="error-box">{actions.error}</div>}
         <div className="action-log">{actions.actions.map((action) => <ActionRow
-          key={action.actionId} action={action} council={currentSet.council} isMember={isMember}
+          key={action.actionId} action={action} council={book.council} isMember={isMember}
           thresholds={overview.thresholds} membershipVersion={overview.membershipVersion} proposals={proposals} now={now}
           onDone={() => { void actions.refresh(); void refresh() }} />)}
         {!actions.loading && actions.actions.length === 0 && <div className="empty inline">

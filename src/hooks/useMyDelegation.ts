@@ -22,7 +22,7 @@ import type { DelegationSummary } from '@/lib/types'
  * applies it when `to` is neither the account nor the zero address.
  */
 export function useMyDelegation(actAs?: Address) {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const { address: connected } = useWallet()
   // the identity whose delegation is shown and changed: the EOA, or a
   // validator wallet / vesting it controls (CON-864 #8)
@@ -32,8 +32,8 @@ export function useMyDelegation(actAs?: Address) {
   const [error, setError] = useState<string>()
 
   const refresh = useCallback(async () => {
-    if (!address || !currentSet) { setSummary(undefined); return }
-    const votingPower = currentSet.votingPower
+    if (!address || !book) { setSummary(undefined); return }
+    const votingPower = book.votingPower
     setLoading(true); setError(undefined)
     try {
       const read = (functionName: string, args: unknown[]) =>
@@ -77,7 +77,7 @@ export function useMyDelegation(actAs?: Address) {
       })
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
-  }, [address, currentSet])
+  }, [address, book])
 
   useEffect(() => { void refresh() }, [refresh])
   return { summary, loading, error, refresh }

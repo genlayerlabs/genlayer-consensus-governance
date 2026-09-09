@@ -43,7 +43,7 @@ const abi = SecurityCouncilABI as never
  * list is rebuilt from CouncilActionApproved logs.
  */
 export function useCouncilActions() {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const { address } = useWallet()
   const [actions, setActions] = useState<CouncilAction[]>([])
   const [loading, setLoading] = useState(false)
@@ -55,7 +55,7 @@ export function useCouncilActions() {
   const indexedTo = useRef<bigint | undefined>(undefined)
 
   const refresh = useCallback(async () => {
-    const council = currentSet?.council
+    const council = book?.council
     if (!council) { setActions([]); return }
     setLoading(true); setError(undefined)
     try {
@@ -201,7 +201,7 @@ export function useCouncilActions() {
       setActions(rows)
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false); setProgress('') }
-  }, [currentSet])
+  }, [book])
 
   useEffect(() => { void refresh() }, [refresh])
   // Approving is the point of this page, and who may approve depends on the

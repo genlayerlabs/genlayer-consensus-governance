@@ -35,7 +35,7 @@ interface Profile {
  */
 export function AddressProfilePage() {
   const { address: param } = useParams()
-  const { currentSet, voting } = useContracts()
+  const { book, voting } = useContracts()
   const [profile, setProfile] = useState<Profile>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -43,11 +43,11 @@ export function AddressProfilePage() {
   const target = param && isAddress(param) ? getAddress(param) : undefined
 
   const load = useCallback(async () => {
-    if (!target || !currentSet || !voting) return
+    if (!target || !book || !voting) return
     setLoading(true); setError(undefined)
     try {
       const power = (functionName: string, args: unknown[]) =>
-        publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName, args } as never)
+        publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName, args } as never)
 
       const [votingPower, delegate, excluded, controller, cooldown, validators, isCouncilMember] = await Promise.all([
         power('getVotes', [target]) as Promise<bigint>,
@@ -56,8 +56,8 @@ export function AddressProfilePage() {
         power('governanceControllerOf', [target]).catch(() => ZERO_ADDRESS) as Promise<Address>,
         power('delegationSpamCooldownUntil', [target]).then((v) => BigInt(v as never)) as Promise<bigint>,
         power('liveValidatorsOf', [target]).catch(() => []) as Promise<Address[]>,
-        currentSet.council
-          ? publicClient.readContract({ address: currentSet.council, abi: SecurityCouncilABI, functionName: 'isMember', args: [target] } as never).catch(() => false) as Promise<boolean>
+        book.council
+          ? publicClient.readContract({ address: book.council, abi: SecurityCouncilABI, functionName: 'isMember', args: [target] } as never).catch(() => false) as Promise<boolean>
           : Promise.resolve(false),
       ])
 
@@ -80,7 +80,7 @@ export function AddressProfilePage() {
       })
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
-  }, [target, currentSet, voting])
+  }, [target, book, voting])
 
   useEffect(() => { void load() }, [load])
 

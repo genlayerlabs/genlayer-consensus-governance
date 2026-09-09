@@ -1,16 +1,6 @@
 import type { Address, Hex } from 'viem'
 
-export interface ContractSet {
-  voting: Address
-  votingPower: Address
-  gesRegistry: Address
-  classRegistry: Address
-  clock: Address
-  executor: Address
-  l1Bridge: Address
-  council: Address
-  elections: Address
-}
+export type { GovernanceIdentities } from './sealedIdentities'
 
 export interface ProposalCore {
   id: bigint
@@ -20,7 +10,6 @@ export interface ProposalCore {
   fStart: number
   voteEnd: number
   payloadHash: Hex
-  contractsHash: Hex
   classTimelock: bigint
   retryAllowed: boolean
   descriptionHash: Hex
@@ -97,7 +86,6 @@ export interface ProposalSummary {
   operations: Operation[]
   operationPermissions: boolean[]
   ges: bigint
-  contractSet: ContractSet
   connectedVote?: ConnectedVote
   postVote: ProposalPostVote
   executionEta: bigint

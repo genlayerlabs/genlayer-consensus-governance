@@ -375,7 +375,7 @@ function ParametersPanel({ parameters }: { parameters: ElectionParameters }) {
 }
 
 export function ElectionsPage() {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const { address } = useWallet()
   const { elections, loading, error, source, refresh } = useElections()
   // startElection is permissionless and due whenever no election is live
@@ -386,13 +386,13 @@ export function ElectionsPage() {
   // contract said NoElectionDue (or why not).
   const anyLive = elections.some((election) => election.state >= 1 && election.state <= 4)
   const { allowed: startDue, reason: startRefusal } = useCanCall({
-    address: currentSet?.elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'startElection',
+    address: book?.elections, abi: GovernanceCouncilElectionsABI as never, functionName: 'startElection',
     args: [], account: address, enabled: !loading && !anyLive,
   })
   const parameters = useElectionParameters()
   const economics = isPresent(parameters.economics) ? parameters.economics.value : undefined
 
-  if (!currentSet?.elections) {
+  if (!book?.elections) {
     return <div className="page"><section className="empty"><h1>Select a deployment</h1>
       <p>Set an AddressManager in the header to load its council elections.</p></section></div>
   }
@@ -409,7 +409,7 @@ export function ElectionsPage() {
     {!anyLive && elections.length > 0 && (startDue
       ? <section className="panel"><div className="section-heading"><div><p className="eyebrow">Due now</p><h2>An election can be started</h2>
         <p className="muted">{elections[0]?.state === 5 ? `Election #${elections[0].id} failed quorum, so its retry is due at a halved quorum.` : 'A cohort expiry, special-election trigger, queued recall or the bootstrap gate has arrived.'} Anyone may open it.</p></div>
-        <TransactionButton address={currentSet.elections} abi={GovernanceCouncilElectionsABI as never} functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start election</TransactionButton></div></section>
+        <TransactionButton address={book.elections} abi={GovernanceCouncilElectionsABI as never} functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start election</TransactionButton></div></section>
       : startDue === false && startRefusal && <p className="hint">No election is due: {startRefusal}</p>)}
 
     {error && <div className="error-box">{error}</div>}
@@ -421,10 +421,10 @@ export function ElectionsPage() {
       <p><code>electionCount()</code> is zero on this deployment. The first opens when someone calls
         <code>startElection()</code> past the bootstrap gate — which has no getter either, so the gate cannot be
         read in advance: the call either starts an election or reverts <code>NoElectionDue</code>.</p>
-      <TransactionButton address={currentSet.elections} abi={GovernanceCouncilElectionsABI as never}
+      <TransactionButton address={book.elections} abi={GovernanceCouncilElectionsABI as never}
         functionName="startElection" args={[]} onConfirmed={() => void refresh()}>Start an election</TransactionButton>
     </section>}
 
-    {elections.map((election) => <ElectionCard key={election.id.toString()} election={election} elections={currentSet.elections} economics={economics} onChanged={() => void refresh()} />)}
+    {elections.map((election) => <ElectionCard key={election.id.toString()} election={election} elections={book.elections} economics={economics} onChanged={() => void refresh()} />)}
   </div>
 }

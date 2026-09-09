@@ -32,11 +32,11 @@ const pending = { unknown: new Error('not read yet') } as const
  * visitor needs to read the rules without opening the spec.
  */
 export function useElectionParameters(): ElectionParameters {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const [state, setState] = useState<Omit<ElectionParameters, 'refresh'>>({ economics: pending, periods: pending, quorums: pending, termLength: pending, loading: false })
 
   const refresh = useCallback(async () => {
-    const address = currentSet?.elections
+    const address = book?.elections
     if (!address) return
     setState((current) => ({ ...current, loading: true }))
     const read = (functionName: string) => publicClient.readContract({ address, abi, functionName } as never)
@@ -55,7 +55,7 @@ export function useElectionParameters(): ElectionParameters {
       quorums: 'value' in quorums ? { value: { quorumBps: Number(quorums.value[0]), quorumFloorBps: Number(quorums.value[1]), minSupportBps: Number(quorums.value[2]), refundFloorBps: Number(quorums.value[3]) } } : quorums,
       termLength: 'value' in termLength ? { value: BigInt(termLength.value) } : termLength,
     })
-  }, [currentSet])
+  }, [book])
 
   useEffect(() => { void refresh() }, [refresh])
   return { ...state, refresh }

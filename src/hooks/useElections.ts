@@ -41,7 +41,7 @@ const abi = GovernanceCouncilElectionsABI as never
  * for the start transaction it carries.
  */
 export function useElections() {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const [elections, setElections] = useState<ElectionSummary[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
@@ -49,7 +49,7 @@ export function useElections() {
   const [source, setSource] = useState<'struct' | 'logs' | 'unknown'>('logs')
 
   const refresh = useCallback(async () => {
-    const address = currentSet?.elections
+    const address = book?.elections
     if (!address) { setElections([]); return }
     setLoading(true); setError(undefined)
     try {
@@ -63,8 +63,8 @@ export function useElections() {
       // The frozen total is what turns an unfrozen offset into a wall instant.
       // Read once per refresh: a freeze that begins later moves every bound,
       // and the next refresh (or countdown tick past a stale bound) shows it.
-      const frozen = currentSet?.clock
-        ? await tryRead<bigint | number>({ address: currentSet.clock, abi: GovernanceClockABI as never, functionName: 'frozenTotal' })
+      const frozen = book?.clock
+        ? await tryRead<bigint | number>({ address: book.clock, abi: GovernanceClockABI as never, functionName: 'frozenTotal' })
         : ({ unknown: new Error('no clock') } as const)
       const frozenTotalNow = isPresent(frozen) ? BigInt(frozen.value) : undefined
       // Local time stands in for block.timestamp: the chain and the viewer
@@ -129,12 +129,12 @@ export function useElections() {
       // voting has opened (before that the snapshot is still ahead), and
       // only where the struct exists to say where the snapshot is.
       const withQuorum = await Promise.all(rows.map(async (row) => {
-        if (!row.details || frozenTotalNow === undefined || row.state < 3 || !currentSet?.clock) return row
+        if (!row.details || frozenTotalNow === undefined || row.state < 3 || !book?.clock) return row
         try {
-          const clock = currentSet.clock
+          const clock = book.clock
           const snapshotInstant = await resolveEffectiveInstant(row.details, row.details.voteStartOffset, now, async (at) =>
             BigInt(await publicClient.readContract({ address: clock, abi: GovernanceClockABI as never, functionName: 'frozenTotalAt', args: [at] } as never) as bigint | number))
-          const registry = row.details.gesRegistry === ZERO_ADDRESS ? currentSet.gesRegistry : row.details.gesRegistry
+          const registry = row.details.gesRegistry === ZERO_ADDRESS ? book.gesRegistry : row.details.gesRegistry
           const ges = await publicClient.readContract({ address: registry, abi: GovernanceGESRegistryABI as never, functionName: 'getPastGES', args: [snapshotInstant] } as never) as bigint
           return { ...row, snapshotInstant, ges, quorumRequired: electionQuorumRequired(row.details.quorumBps, ges) }
         } catch { return row }
@@ -173,7 +173,7 @@ export function useElections() {
       }
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
-  }, [currentSet])
+  }, [book])
 
   useEffect(() => { void refresh() }, [refresh])
   return { elections, loading, error, source, refresh }
@@ -191,14 +191,14 @@ export function useElections() {
  * That path is complete only within the scanned range, and says so.
  */
 export function useElectionCandidates(electionId?: bigint, fromBlock?: bigint) {
-  const { currentSet } = useContracts()
+  const { book } = useContracts()
   const [candidates, setCandidates] = useState<ElectionCandidate[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()
   const [complete, setComplete] = useState(false)
 
   const refresh = useCallback(async () => {
-    const address = currentSet?.elections
+    const address = book?.elections
     if (!address || electionId === undefined) { setCandidates([]); return }
     setLoading(true); setError(undefined)
     try {
@@ -248,7 +248,7 @@ export function useElectionCandidates(electionId?: bigint, fromBlock?: bigint) {
       setComplete(false)
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
-  }, [currentSet, electionId, fromBlock])
+  }, [book, electionId, fromBlock])
 
   useEffect(() => { void refresh() }, [refresh])
   return { candidates, loading, error, complete, refresh }

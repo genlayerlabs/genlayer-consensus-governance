@@ -19,12 +19,12 @@ export interface AccountSummary {
 
 export function useAccountSummary() {
   const { address } = useWallet()
-  const { voting, currentSet } = useContracts()
+  const { voting, book } = useContracts()
   const [summary, setSummary] = useState<AccountSummary>()
   const [error, setError] = useState<string>()
   const [loading, setLoading] = useState(false)
   const refresh = useCallback(async () => {
-    if (!address || !voting || !currentSet) { setSummary(undefined); return }
+    if (!address || !voting || !book) { setSummary(undefined); return }
     setLoading(true); setError(undefined)
     try {
       // The ERC-6372 clock lives on GovernanceVotingPower, NOT on
@@ -37,19 +37,19 @@ export function useAccountSummary() {
       // runtime, and the next line's `clock - 1n` then threw
       // "Cannot mix BigInt and other types" -- caught and mislabelled as an
       // RPC error. Every uint48 read below is coerced for the same reason.
-      const clock = BigInt(await publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint | number)
+      const clock = BigInt(await publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'clock' } as any) as bigint | number)
       const point = clock - 1n
       const [ges, votingPower, liveProposals, directCooldownUntil, delegateCooldownUntil] = await Promise.all([
-        publicClient.readContract({ address: currentSet.gesRegistry, abi: GovernanceGESRegistryABI, functionName: 'getPastGES', args: [point] } as any) as Promise<bigint>,
-        publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'getPastVotesForGovernance', args: [address, point] } as any) as Promise<bigint>,
+        publicClient.readContract({ address: book.gesRegistry, abi: GovernanceGESRegistryABI, functionName: 'getPastGES', args: [point] } as any) as Promise<bigint>,
+        publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'getPastVotesForGovernance', args: [address, point] } as any) as Promise<bigint>,
         publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'liveProposalCount', args: [address] } as any) as Promise<bigint>,
         publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName: 'spamCooldownUntil', args: [address] } as any).then((value) => BigInt(value as bigint | number)),
-        publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI, functionName: 'delegationSpamCooldownUntil', args: [address] } as any).then((value) => BigInt(value as bigint | number)),
+        publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI, functionName: 'delegationSpamCooldownUntil', args: [address] } as any).then((value) => BigInt(value as bigint | number)),
       ])
       setSummary({ clock, ges, votingPower, requiredPower: (ges * 100n + 9_999n) / 10_000n, bond: (ges * 10n) / 10_000n, liveProposals, directCooldownUntil, delegateCooldownUntil })
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setLoading(false) }
-  }, [address, voting, currentSet])
+  }, [address, voting, book])
   useEffect(() => { void refresh() }, [refresh])
   return { address, summary, error, loading, refresh }
 }

@@ -29,7 +29,7 @@ const abi = GovernanceCouncilElectionsABI as never
  */
 export function NominateForm({ election, elections, economics, onNominated }: { election: ElectionSummary; elections: Address; economics: NominationEconomics; onNominated: () => void }) {
   const { address, isConnected } = useWallet()
-  const { currentSet, stopState, migrationActive } = useContracts()
+  const { book, stopState } = useContracts()
   const [manifesto, setManifesto] = useState('')
   const [balance, setBalance] = useState<bigint>()
   const [eligibility, setEligibility] = useState<{ live?: boolean; cooldownUntil?: bigint; excluded?: boolean; seated?: boolean }>({})
@@ -50,14 +50,14 @@ export function NominateForm({ election, elections, economics, onNominated }: { 
     void Promise.all([
       publicClient.readContract({ address: elections, abi, functionName: 'isLiveCandidate', args: [address] } as never).catch(() => undefined) as Promise<boolean | undefined>,
       publicClient.readContract({ address: elections, abi, functionName: 'recallCooldownOf', args: [address] } as never).then((until) => BigInt(until as bigint | number)).catch(() => undefined),
-      currentSet?.votingPower ? publicClient.readContract({ address: currentSet.votingPower, abi: GovernanceVotingPowerABI as never, functionName: 'isExcluded', args: [address] } as never).catch(() => undefined) as Promise<boolean | undefined> : Promise.resolve(undefined),
-      currentSet?.council ? publicClient.readContract({ address: currentSet.council, abi: SecurityCouncilABI as never, functionName: 'isSeated', args: [address] } as never).catch(() => undefined) as Promise<boolean | undefined> : Promise.resolve(undefined),
+      book?.votingPower ? publicClient.readContract({ address: book.votingPower, abi: GovernanceVotingPowerABI as never, functionName: 'isExcluded', args: [address] } as never).catch(() => undefined) as Promise<boolean | undefined> : Promise.resolve(undefined),
+      book?.council ? publicClient.readContract({ address: book.council, abi: SecurityCouncilABI as never, functionName: 'isSeated', args: [address] } as never).catch(() => undefined) as Promise<boolean | undefined> : Promise.resolve(undefined),
     ]).then(([live, cooldownUntil, excluded, seated]) => { if (!cancelled) setEligibility({ live, cooldownUntil, excluded, seated }) })
     return () => { cancelled = true }
-  }, [address, elections, currentSet])
+  }, [address, elections, book])
 
   const now = BigInt(Math.floor(Date.now() / 1000))
-  const governanceReady = !!stopState && !stopState.freezeActive && !stopState.maintenanceActive && !migrationActive
+  const governanceReady = !!stopState && !stopState.freezeActive && !stopState.maintenanceActive
   const sizeOk = manifestoWithinLimit(bytes)
   const fundsOk = balance !== undefined && balance >= value
   const notLive = eligibility.live === false
@@ -105,7 +105,7 @@ export function NominateForm({ election, elections, economics, onNominated }: { 
     </div>
     <ul className="criteria">
       <Criterion met={isConnected && !!address}>{address ? `Wallet ${shortAddress(address)}` : 'Connect a wallet'}</Criterion>
-      <Criterion met={governanceReady}>Governance active; no freeze, maintenance, or migration</Criterion>
+      <Criterion met={governanceReady}>Governance active; no freeze or maintenance</Criterion>
       <Criterion met={sizeOk}>Manifesto within the 16 KB cap</Criterion>
       <Criterion met={fundsOk} pending={!!address && balance === undefined}>{balance === undefined ? 'Exact nomination cost available' : `${formatGen(balance)} GEN available for the ${formatGen(value, 6)} GEN cost`}</Criterion>
       <Criterion met={notLive} pending={!!address && eligibility.live === undefined}>Not already a live candidate elsewhere</Criterion>
