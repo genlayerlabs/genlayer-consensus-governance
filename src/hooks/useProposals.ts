@@ -8,7 +8,8 @@ import { deploymentConfig } from '@/config/chain'
 import { publicClient } from '@/config/clients'
 import { useContracts } from '@/config/ContractsContext'
 import { useWallet } from '@/config/WalletContext'
-import { normalizeCore, normalizePostVote, normalizeRules, normalizeVotes, titleFromDescription } from '@/lib/governance'
+import { normalizePostVote, normalizeRules, normalizeVotes, titleFromDescription } from '@/lib/governance'
+import { readProposalCore } from '@/lib/proposalCore'
 import { readCache, writeCache } from '@/lib/logCache'
 import { isPresent, tryRead } from '@/lib/optionalRead'
 import { findLatestLogBackwards, scanLogs } from '@/lib/rpc'
@@ -45,15 +46,20 @@ export async function fetchProposal(book: GovernanceIdentities, id: bigint, acco
     }
   }
   const calls = [
-    ['getProposal', [id]], ['state', [id]], ['proposalDescription', [id]],
+    ['state', [id]], ['proposalDescription', [id]],
     ['proposalSnapshot', [id]], ['proposalDeadline', [id]], ['proposalVotes', [id]],
     ['proposalRules', [id]], ['proposalOperations', [id]], ['postVoteOf', [id]],
     ['executionEta', [id]], ['executionDeadline', [id]],
   ] as const
-  const [coreValue, state, description, voteStart, voteEnd, votes, rules, operations, postVote, executionEta, executionDeadline] = await Promise.all(calls.map(([functionName, args]) =>
-    publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName, args } as any),
-  ))
-  const core = normalizeCore(coreValue)
+  // getProposal is read raw and decoded by shape: a pre-CON-865 deployment
+  // returns one word more (the retired contractsHash pin), and decoding that
+  // with the sealed ABI slides every later field by a word.
+  const [decoded, state, description, voteStart, voteEnd, votes, rules, operations, postVote, executionEta, executionDeadline] = await Promise.all([
+    readProposalCore(voting, id),
+    ...calls.map(([functionName, args]) =>
+      publicClient.readContract({ address: voting, abi: GovernanceVotingABI, functionName, args } as any)),
+  ] as const) as [Awaited<ReturnType<typeof readProposalCore>>, ...any[]]
+  const core = decoded.core
   // clock() is on GovernanceVotingPower, not GovernanceClock — see the note
   // in useAccountSummary. Reading it from book.clock reverts.
   // BigInt(): uint48 decodes to a number in viem — see useAccountSummary.
