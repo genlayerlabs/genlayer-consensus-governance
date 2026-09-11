@@ -39,6 +39,16 @@
         "GovernanceCouncilElections.json"
       ],
       "note": "CON-865 sealed identities: the ContractSet lookup API (registerContractSet, activateContractSet, contractSet(hash), currentContractsHash, migrationInProgress and the migration coordinator) is gone from GovernanceVoting, ProposalCreated drops its contractsHash topic, getProposal's struct drops contractsHash, every governance contract gains addressManager() / protocolComponentId(), and AddressManager gains isSealed() / manifestCommitment() / validateManifest() / seal(). Compiled from source at this commit with hardhat (solc), never copied from a tracked artifact."
+    },
+    {
+      "commit": "39eb6823ca0a22590fc9ad4be30598bc2265e847",
+      "branch": "claus-dev",
+      "pullRequest": 1595,
+      "files": [
+        "Vesting.json (vestingGovCastVote and vestingGovCastBallot outputs)",
+        "ValidatorWallet.json (govCastVote and govCastBallot outputs)"
+      ],
+      "note": "The four wrappers return uint256 weight on the composed sealed-governance cut. Output signatures refreshed from its compiled artifacts; existing input selectors and transaction behavior are unchanged."
     }
   ]
 }
