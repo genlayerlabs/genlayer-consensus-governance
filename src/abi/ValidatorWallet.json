@@ -50,7 +50,13 @@
         "type": "string"
       }
     ],
-    "outputs": []
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "weight",
+        "type": "uint256"
+      }
+    ]
   },
   {
     "type": "function",
@@ -78,7 +84,13 @@
       }
     ],
     "name": "govCastBallot",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "weight",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   }

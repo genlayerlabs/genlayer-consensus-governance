@@ -217,7 +217,13 @@
       }
     ],
     "name": "vestingGovCastBallot",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "weight",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -240,7 +246,13 @@
       }
     ],
     "name": "vestingGovCastVote",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "weight",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
