@@ -9,7 +9,8 @@ export const deploymentConfig = {
   // exactly when a visitor has never chosen an AddressManager — landing on a
   // working deployment beats landing on an empty "select a deployment" state.
   // Anything the user picks in the UI wins and persists.
-  addressManager: import.meta.env.VITE_ADDRESS_MANAGER ?? '0xF44832E41c8c29844cB84Be264dc883Fc129cd14',
+  // bradbury-phase-2 (deployment_bradbury_phase_2, sealed 2026-10-15).
+  addressManager: import.meta.env.VITE_ADDRESS_MANAGER ?? '0x3F71AE080BD6270A91dBcc7960d88797828538E0',
   deploymentStartBlock: BigInt(import.meta.env.VITE_DEPLOYMENT_START_BLOCK ?? '0'),
   // Largest eth_getLogs window the RPC accepts. The GenLayer testnet node
   // rejects anything wider with

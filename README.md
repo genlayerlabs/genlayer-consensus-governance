@@ -114,7 +114,7 @@ npm run build
 | `VITE_CHAIN_NAME` | Displayed network name | `GenLayer Testnet` |
 | `VITE_RPC_URL` | Public JSON-RPC endpoint | GenLayer testnet RPC |
 | `VITE_EXPLORER_URL` | Transaction/address links | GenLayer testnet explorer |
-| `VITE_ADDRESS_MANAGER` | Governance deployment entry point | `deployment_gov3` |
+| `VITE_ADDRESS_MANAGER` | Governance deployment entry point | `deployment_bradbury_phase_2` (`0x3F71AE080BD6270A91dBcc7960d88797828538E0`)
 | `VITE_DEPLOYMENT_START_BLOCK` | Lower bound for log scans | `0` |
 | `VITE_MAX_BLOCK_RANGE` | Largest `eth_getLogs` window the RPC accepts | `10000` |
 
