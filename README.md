@@ -108,6 +108,8 @@ npm run build
 
 ## Deployment configuration
 
+The deployments offered in the header dialog come from [genlayerlabs/genlayer-networks](https://github.com/genlayerlabs/genlayer-networks): every folder of that repository is an entry (read through its `index.json` and raw.githubusercontent.com, see `src/config/networksRepo.ts`). The first visit opens the newest folder; the choice (folder and AddressManager) is remembered in `localStorage`; the refresh button in the dialog reloads the folder list from the repository; any other AddressManager can still be typed.
+
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `VITE_CHAIN_ID` | Wallet/RPC chain ID | `4221` |
@@ -118,7 +120,7 @@ npm run build
 | `VITE_DEPLOYMENT_START_BLOCK` | Lower bound for log scans | `0` |
 | `VITE_MAX_BLOCK_RANGE` | Largest `eth_getLogs` window the RPC accepts | `10000` |
 
-A visitor's own AddressManager choice lives in `localStorage` and always wins; the configured value is the fallback for someone who has never chosen one. Keep `VITE_DEPLOYMENT_START_BLOCK` at `0` when the AddressManager can be switched at runtime — a floor above another deployment's history would silently hide it, and the creation-block search makes the setting largely unnecessary.
+A visitor's own AddressManager choice lives in `localStorage` and always wins; the configured value is the fallback for someone who has never chosen one when the genlayer-networks list cannot be read. Keep `VITE_DEPLOYMENT_START_BLOCK` at `0` when the AddressManager can be switched at runtime — a floor above another deployment's history would silently hide it, and the creation-block search makes the setting largely unnecessary.
 
 ## GitHub Pages
 

@@ -5,10 +5,10 @@ export const deploymentConfig = {
   chainName: import.meta.env.VITE_CHAIN_NAME ?? 'GenLayer Testnet',
   rpcUrl: import.meta.env.VITE_RPC_URL ?? 'https://rpc-genlayer-chain-testnet-cfn8m3xc6l.t.conduit.xyz',
   explorerUrl: import.meta.env.VITE_EXPLORER_URL ?? 'https://explorer-genlayer-chain-testnet-cfn8m3xc6l.t.conduit.xyz',
-  // Fallback only. ContractsContext reads localStorage FIRST, so this is used
-  // exactly when a visitor has never chosen an AddressManager — landing on a
-  // working deployment beats landing on an empty "select a deployment" state.
-  // Anything the user picks in the UI wins and persists.
+  // Last-resort fallback. ContractsContext reads localStorage first and then the
+  // newest folder of genlayerlabs/genlayer-networks; this address is used only
+  // when a visitor has never chosen a deployment AND the folder list cannot be
+  // read. Anything the user picks in the UI wins and persists.
   // bradbury-phase-2 (deployment_bradbury_phase_2, sealed 2026-10-15).
   addressManager: import.meta.env.VITE_ADDRESS_MANAGER ?? '0x3F71AE080BD6270A91dBcc7960d88797828538E0',
   deploymentStartBlock: BigInt(import.meta.env.VITE_DEPLOYMENT_START_BLOCK ?? '0'),

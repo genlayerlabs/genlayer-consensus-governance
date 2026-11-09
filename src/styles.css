@@ -419,6 +419,10 @@ summary { color: var(--muted); font-size: 12px; cursor: pointer; margin-bottom: 
 .modal label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; margin-top: 22px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 .modal.wide { width: min(760px, 100%); }
+.deployment-picker { display: flex; gap: 8px; align-items: stretch; }
+.deployment-picker select { flex: 1; min-width: 0; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .sealed-identities { margin-top: 18px; }
 .sealed-identities .seal-status { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; font-size: 12px; }
 .sealed-identities .seal-status.sealed { color: var(--green); }
