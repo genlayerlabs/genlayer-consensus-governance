@@ -87,10 +87,16 @@ export function ContractsProvider({ children }: { children: ReactNode }) {
       .then((index) => {
         if (cancelled) return
         setDeployments(index.deployments)
-        // A typed AddressManager (address stored, no folder) is left alone.
-        const typed = !selectedDeployment && !!storedValue.get(STORAGE_KEY)
-        if (typed) return
-        const deployment = pickDeployment(index, selectedDeployment)
+        // An address stored without a folder (typed, or chosen before the folder
+        // list existed) is adopted as its folder when one lists that
+        // AddressManager, and left alone otherwise.
+        const storedAddress = storedValue.get(STORAGE_KEY)
+        const typed = !selectedDeployment && !!storedAddress
+        const matching = typed
+          ? index.deployments.find((d) => d.addressManager.toLowerCase() === storedAddress!.toLowerCase())
+          : undefined
+        if (typed && !matching) return
+        const deployment = pickDeployment(index, matching?.name ?? selectedDeployment)
         if (!deployment) {
           setDeploymentsError('genlayer-networks lists no deployment folder')
           return
